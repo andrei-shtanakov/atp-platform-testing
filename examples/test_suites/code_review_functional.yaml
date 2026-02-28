@@ -1,0 +1,259 @@
+# Functional tests for Code Review Agent
+# Run:
+#   uv run atp test examples/test_suites/code_review_functional.yaml \
+#     --adapter=http \
+#     --adapter-config='endpoint=http://localhost:8000/review' \
+#     --runs=3
+
+test_suite: "code_review_functional"
+version: "1.0"
+description: "Functional tests: bug detection, style, performance analysis"
+
+defaults:
+  runs_per_test: 3
+  timeout_seconds: 120
+  constraints:
+    max_steps: 10
+    max_tokens: 50000
+    timeout_seconds: 120
+    budget_usd: 0.50
+  scoring:
+    quality_weight: 0.4
+    completeness_weight: 0.3
+    efficiency_weight: 0.2
+    cost_weight: 0.1
+
+agents:
+  - name: "code-review-agent"
+    type: "http"
+    config:
+      endpoint: "${API_ENDPOINT:http://localhost:8000/review}"
+      timeout: 120
+
+tests:
+  - id: "FN-001"
+    name: "Clean code -- no issues expected"
+    tags: ["functional", "positive"]
+    task:
+      description: "Review this clean, well-written Python code. It should have no issues."
+      input_data:
+        code: |
+          """Module for calculating Fibonacci numbers."""
+
+          def fibonacci(n: int) -> int:
+              """Return the n-th Fibonacci number.
+
+              Args:
+                  n: Non-negative integer index.
+
+              Returns:
+                  The n-th Fibonacci number.
+
+              Raises:
+                  ValueError: If n is negative.
+              """
+              if n < 0:
+                  raise ValueError(f"n must be non-negative, got {n}")
+              if n <= 1:
+                  return n
+              a, b = 0, 1
+              for _ in range(2, n + 1):
+                  a, b = b, a + b
+              return b
+        language: "python"
+        review_type: "full"
+    assertions:
+      - type: "artifact_exists"
+        config:
+          path: "review.json"
+      - type: "llm_eval"
+        config:
+          criteria: "completeness"
+          threshold: 0.9
+          instruction: "The review should confirm the code is clean and well-structured with few or no issues"
+
+  - id: "FN-002"
+    name: "Detects multiple bugs"
+    tags: ["functional", "bugs"]
+    task:
+      description: "Review this buggy Python code. Find all bugs."
+      input_data:
+        code: |
+          def process_items(items):
+              results = []
+              for i in range(len(items)):
+                  if items[i] > 0:
+                      results.append(items[i] * 2)
+                  else:
+                      results.append(items[i] / 0)  # Division by zero
+              return results
+
+          def find_max(lst):
+              max_val = 0  # Bug: fails for all-negative lists
+              for item in lst:
+                  if item > max_val:
+                      max_val = item
+              return max_val
+
+          def merge_dicts(a, b):
+              result = a  # Bug: mutates original dict
+              result.update(b)
+              return result
+        language: "python"
+    assertions:
+      - type: "artifact_exists"
+        config:
+          path: "review.json"
+      - type: "llm_eval"
+        config:
+          criteria: "completeness"
+          threshold: 0.8
+          instruction: "Check that the review identifies at least 3 bugs: division by zero, incorrect max initialization, and dict mutation"
+
+  - id: "FN-003"
+    name: "Detects performance issues"
+    tags: ["functional", "performance"]
+    task:
+      description: "Review this code for performance issues"
+      input_data:
+        code: |
+          def find_duplicates(lst):
+              """Find duplicate items in a list."""
+              duplicates = []
+              for i in range(len(lst)):
+                  for j in range(i + 1, len(lst)):
+                      if lst[i] == lst[j] and lst[i] not in duplicates:
+                          duplicates.append(lst[i])
+              return duplicates
+
+          def count_words(text):
+              """Count word frequencies."""
+              words = text.split()
+              counts = {}
+              for word in words:
+                  found = False
+                  for key in counts:
+                      if key == word:
+                          counts[key] += 1
+                          found = True
+                          break
+                  if not found:
+                      counts[word] = 1
+              return counts
+        language: "python"
+        review_type: "performance"
+    assertions:
+      - type: "artifact_exists"
+        config:
+          path: "review.json"
+      - type: "llm_eval"
+        config:
+          criteria: "quality"
+          threshold: 0.8
+          instruction: "Check that the review identifies O(n^2) complexity in find_duplicates and redundant linear search in count_words, and suggests using sets/Counter"
+
+  - id: "FN-004"
+    name: "Detects PEP 8 style violations"
+    tags: ["functional", "style"]
+    task:
+      description: "Review this code for PEP 8 style violations"
+      input_data:
+        code: |
+          import os,sys
+          from collections import *
+
+          def MyFunction(X,Y):
+            z=X+Y
+            if(z>10):
+              return True
+            else:
+              return False
+
+          class myClass:
+            def __init__(self,Name,AGE):
+              self.Name=Name
+              self.AGE=AGE
+            def GetName(self):
+              return self.Name
+        language: "python"
+        review_type: "style"
+    assertions:
+      - type: "artifact_exists"
+        config:
+          path: "review.json"
+      - type: "llm_eval"
+        config:
+          criteria: "completeness"
+          threshold: 0.7
+          instruction: "Review should identify: wildcard import, function/class naming (should be snake_case/PascalCase), missing spaces around operators, unnecessary parentheses in if, redundant else"
+
+  - id: "FN-005"
+    name: "Reviews complex function adequately"
+    tags: ["functional", "complex"]
+    task:
+      description: "Review this complex function for readability and correctness"
+      input_data:
+        code: |
+          def parse_config(raw, defaults=None, strict=False, env_prefix="APP"):
+              config = {} if defaults is None else dict(defaults)
+              if raw is None:
+                  return config
+              lines = raw.strip().split("\n")
+              current_section = None
+              for i, line in enumerate(lines):
+                  line = line.strip()
+                  if not line or line.startswith("#"):
+                      continue
+                  if line.startswith("[") and line.endswith("]"):
+                      current_section = line[1:-1].strip()
+                      if current_section not in config:
+                          config[current_section] = {}
+                      continue
+                  if "=" not in line:
+                      if strict:
+                          raise ValueError(f"Invalid line {i + 1}: {line}")
+                      continue
+                  key, _, value = line.partition("=")
+                  key = key.strip()
+                  value = value.strip()
+                  if value.startswith("${") and value.endswith("}"):
+                      import os
+                      env_key = f"{env_prefix}_{value[2:-1]}"
+                      value = os.environ.get(env_key, value)
+                  if value.lower() in ("true", "false"):
+                      value = value.lower() == "true"
+                  elif value.isdigit():
+                      value = int(value)
+                  if current_section:
+                      config[current_section][key] = value
+                  else:
+                      config[key] = value
+              return config
+        language: "python"
+    constraints:
+      max_tokens: 30000
+    assertions:
+      - type: "artifact_exists"
+        config:
+          path: "review.json"
+      - type: "llm_eval"
+        config:
+          criteria: "quality"
+          threshold: 0.7
+          instruction: "Review should provide meaningful analysis of: import inside function, type conversion edge cases, function complexity, and suggest refactoring"
+
+  - id: "FN-006"
+    name: "Handles empty code gracefully"
+    tags: ["functional", "edge_case"]
+    task:
+      description: "Review this empty/minimal code"
+      input_data:
+        code: ""
+        language: "python"
+    assertions:
+      - type: "behavior"
+        config:
+          check: "no_errors"
+      - type: "artifact_exists"
+        config:
+          path: "review.json"

@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CodeReviewReport",
+  "description": "JSON Schema for Code Review Agent output",
+  "type": "object",
+  "required": ["summary", "issues", "metrics"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 5,
+      "description": "Brief summary of the review findings"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "category", "message"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low", "info"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["bug", "security", "performance", "style", "maintainability"]
+          },
+          "line": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          },
+          "message": {
+            "type": "string",
+            "minLength": 5
+          },
+          "suggestion": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["total_issues"],
+      "properties": {
+        "total_issues": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "critical": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "high": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "medium": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "low": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "overall_quality": {
+      "type": "string",
+      "enum": ["excellent", "good", "acceptable", "needs_improvement", "poor"]
+    }
+  }
+}
