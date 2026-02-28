@@ -1,12 +1,12 @@
-# Smoke tests for Code Review Agent
-# Run:
+# Smoke-тесты для Code Review Agent
+# Запуск:
 #   uv run atp test examples/test_suites/code_review_smoke.yaml \
 #     --adapter=http \
 #     --adapter-config='endpoint=http://localhost:8000/review'
 
 test_suite: "code_review_smoke"
 version: "1.0"
-description: "Basic health checks for the Code Review Agent"
+description: "Базовые проверки работоспособности Code Review Agent"
 
 defaults:
   runs_per_test: 1
@@ -31,7 +31,7 @@ agents:
 
 tests:
   - id: "SM-001"
-    name: "Agent responds to a code review request"
+    name: "Агент отвечает на запрос с кодом"
     tags: ["smoke", "critical"]
     task:
       description: "Review this Python function for bugs and style issues"
@@ -50,7 +50,7 @@ tests:
           check: "no_errors"
 
   - id: "SM-002"
-    name: "Response matches JSON Schema"
+    name: "Ответ соответствует JSON Schema"
     tags: ["smoke", "critical"]
     task:
       description: "Review this Python code and return structured report"
@@ -84,7 +84,7 @@ tests:
                     minimum: 0
 
   - id: "SM-003"
-    name: "Agent detects SQL injection"
+    name: "Агент находит SQL injection"
     tags: ["smoke", "critical", "security"]
     task:
       description: "Review this code for security vulnerabilities"

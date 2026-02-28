@@ -1,20 +1,20 @@
-# ATP Platform: Installation, Configuration, and Testing
+# ATP Platform: Установка, настройка и тестирование
 
-> Step-by-step guide for working with the Agent Test Platform (atp-platform)
+> Пошаговое руководство для работы с Agent Test Platform (atp-platform)
 
 ---
 
-## 1. System Requirements
+## 1. Системные требования
 
-| Component | Requirement |
+| Компонент | Требование |
 |-----------|-----------|
 | Python | >= 3.12 |
-| Package manager | uv (NOT pip) |
-| OS | macOS / Linux / Windows (WSL) |
-| Docker | Optional (for container adapter) |
-| API keys | Anthropic / OpenAI (for LLM evaluator) |
+| Менеджер пакетов | uv (НЕ pip) |
+| ОС | macOS / Linux / Windows (WSL) |
+| Docker | Опционально (для container adapter) |
+| API-ключи | Anthropic / OpenAI (для LLM evaluator) |
 
-### Installing uv (if not already installed)
+### Установка uv (если ещё не установлен)
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -22,39 +22,39 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ---
 
-## 2. Installing ATP Platform
+## 2. Установка ATP Platform
 
-### 2.1. Navigate to the project
+### 2.1. Клонирование и переход в проект
 
 ```bash
 cd /path/to/all_ai_orchestrators/atp-platform
 ```
 
-### 2.2. Install dependencies
+### 2.2. Установка зависимостей
 
 ```bash
-# Minimal installation (core + CLI)
+# Минимальная установка (core + CLI)
 uv sync
 
-# Full installation (all extras)
+# Полная установка (все extras)
 uv sync --all-extras
 
-# Specific extras as needed
+# Конкретные extras по необходимости
 uv sync --extra cloud       # boto3, google-cloud, openai
 uv sync --extra dashboard   # FastAPI dashboard
-uv sync --extra llm         # anthropic SDK (for LLM evaluator)
+uv sync --extra llm         # anthropic SDK (для LLM evaluator)
 uv sync --extra tui         # Terminal UI
 uv sync --extra analytics   # Excel export
 ```
 
-### 2.3. Verify installation
+### 2.3. Проверка установки
 
 ```bash
 uv run atp version
-uv run atp list-agents      # list available adapters
+uv run atp list-agents      # список доступных адаптеров
 ```
 
-Expected `list-agents` output:
+Ожидаемый вывод `list-agents`:
 ```
 Available adapters:
   http          HTTP/HTTPS REST endpoints
@@ -71,11 +71,11 @@ Available adapters:
 
 ---
 
-## 3. Configuration
+## 3. Настройка
 
-### 3.1. Configuration file
+### 3.1. Конфигурационный файл
 
-Create `atp.config.yaml` in the working directory root:
+Создайте `atp.config.yaml` в корне рабочей директории:
 
 ```yaml
 # atp.config.yaml
@@ -86,71 +86,71 @@ fail_fast: false
 sandbox_enabled: false
 runs_per_test: 1
 
-# LLM (for llm_eval assertions)
+# LLM (для llm_eval assertions)
 anthropic_api_key: ${ANTHROPIC_API_KEY}
 default_llm_model: claude-sonnet-4-20250514
 default_provider: anthropic
 max_retries: 3
 request_timeout: 60
 
-# Dashboard (optional)
+# Dashboard (опционально)
 dashboard_host: 127.0.0.1
 dashboard_port: 8080
 ```
 
-### 3.2. Environment variables
+### 3.2. Переменные окружения
 
 ```bash
-# Required (if using LLM evaluator)
+# Обязательные (если используете LLM evaluator)
 export ANTHROPIC_API_KEY="sk-ant-..."
-# or
+# или
 export OPENAI_API_KEY="sk-..."
 
-# Optional
+# Опциональные
 export ATP_LOG_LEVEL=DEBUG
 export ATP_PARALLEL_WORKERS=8
 export ATP_FAIL_FAST=true
 ```
 
-### 3.3. Configuration priority
+### 3.3. Приоритет конфигурации
 
 ```
-CLI flags > Environment variables (ATP_*) > atp.config.yaml > Defaults
+CLI флаги > Переменные окружения (ATP_*) > atp.config.yaml > Значения по умолчанию
 ```
 
 ---
 
-## 4. First Run
+## 4. Первый запуск
 
-### 4.1. Initialize project
+### 4.1. Инициализация проекта
 
 ```bash
 uv run atp init
 ```
 
-Creates initial structure with examples.
+Создаёт начальную структуру с примерами.
 
-### 4.2. Validate a test suite
+### 4.2. Валидация тест-сьюта
 
 ```bash
 uv run atp validate --suite=examples/test_suites/01_smoke_tests.yaml
 ```
 
-### 4.3. List tests without running
+### 4.3. Просмотр тестов без запуска
 
 ```bash
 uv run atp test examples/test_suites/01_smoke_tests.yaml --list-only
 ```
 
-### 4.4. Run smoke tests
+### 4.4. Запуск smoke-тестов
 
 ```bash
-# Against an HTTP agent
+# Против HTTP-агента
 uv run atp test examples/test_suites/01_smoke_tests.yaml \
   --adapter=http \
   --adapter-config='endpoint=http://localhost:8000'
 
-# Against a CLI agent
+# Против CLI-агента
 uv run atp test examples/test_suites/01_smoke_tests.yaml \
   --adapter=cli \
   --adapter-config='command=python' \
@@ -159,82 +159,82 @@ uv run atp test examples/test_suites/01_smoke_tests.yaml \
 
 ---
 
-## 5. Running ATP Platform Tests
+## 5. Запуск тестов ATP Platform
 
-### 5.1. Internal platform tests (pytest)
+### 5.1. Внутренние тесты платформы (pytest)
 
 ```bash
-# All tests with coverage
+# Все тесты с покрытием
 uv run pytest tests/ -v --cov=atp --cov-report=term-missing
 
-# Unit tests only
+# Только unit-тесты
 uv run pytest tests/unit -v
 
-# Fast tests (skip slow marker)
+# Быстрые тесты (без slow-маркера)
 uv run pytest tests/ -v -m "not slow"
 
-# Specific module
+# Конкретный модуль
 uv run pytest tests/unit/loader -v
 uv run pytest tests/unit/evaluators -v
 
-# HTML coverage report
+# HTML-отчёт о покрытии
 uv run pytest --cov=atp --cov-report=html
-# Open: htmlcov/index.html
+# Открыть: htmlcov/index.html
 ```
 
-### 5.2. Linting and formatting
+### 5.2. Линтинг и форматирование
 
 ```bash
-uv run ruff format .          # Format code
-uv run ruff check .           # Check style
-uv run ruff check . --fix     # Auto-fix issues
-pyrefly check                 # Type checking
+uv run ruff format .          # Форматирование
+uv run ruff check .           # Проверка стиля
+uv run ruff check . --fix     # Авто-исправление
+pyrefly check                 # Проверка типов
 ```
 
 ---
 
-## 6. Advanced Run Scenarios
+## 6. Продвинутые сценарии запуска
 
-### 6.1. Multiple runs with statistics
+### 6.1. Множественные прогоны со статистикой
 
 ```bash
 uv run atp test suite.yaml --runs=5 --parallel=4
-# Outputs: mean, std, median, 95% CI, p-value
+# Выводит: mean, std, median, 95% CI, p-value
 ```
 
-### 6.2. Baselines and regression
+### 6.2. Базовые линии и регрессия
 
 ```bash
-# Save baseline
+# Сохранить базовую линию
 uv run atp baseline save suite.yaml -o baseline.json --runs=10
 
-# Compare against baseline (Welch's t-test)
+# Сравнить с базовой линией (Welch's t-test)
 uv run atp baseline compare suite.yaml -b baseline.json
 ```
 
-### 6.3. Reports
+### 6.3. Отчёты
 
 ```bash
-# JSON report
+# JSON-отчёт
 uv run atp test suite.yaml --output=json --output-file=results.json
 
-# HTML report (self-contained file)
+# HTML-отчёт (самодостаточный файл)
 uv run atp test suite.yaml --output=html --output-file=report.html
 
-# JUnit XML (for CI/CD)
+# JUnit XML (для CI/CD)
 uv run atp test suite.yaml --output=junit --output-file=results.xml
 ```
 
-### 6.4. Filtering by tags
+### 6.4. Фильтрация по тегам
 
 ```bash
-# Smoke tests only
+# Только smoke-тесты
 uv run atp test suite.yaml --tags=smoke
 
-# Exclude slow tests
+# Исключить медленные тесты
 uv run atp test suite.yaml --tags='!slow'
 
-# Combination
+# Комбинация
 uv run atp test suite.yaml --tags=smoke,critical
 ```
 
@@ -242,10 +242,10 @@ uv run atp test suite.yaml --tags=smoke,critical
 
 ```bash
 uv run atp dashboard
-# Open: http://127.0.0.1:8080
+# Открыть: http://127.0.0.1:8080
 ```
 
-### 6.6. Game-theoretic evaluation
+### 6.6. Game-Theoretic оценка
 
 ```bash
 uv run atp game examples/test_suites/11_game_prisoners_dilemma.yaml
@@ -253,49 +253,49 @@ uv run atp game examples/test_suites/11_game_prisoners_dilemma.yaml
 
 ---
 
-## 7. Common Issues and Solutions
+## 7. Типичные проблемы и решения
 
-| Issue | Cause | Solution |
-|-------|-------|---------|
-| `ModuleNotFoundError: anthropic` | `llm` extra not installed | `uv sync --extra llm` |
-| `ANTHROPIC_API_KEY not set` | Missing API key | `export ANTHROPIC_API_KEY=sk-ant-...` |
-| `Connection refused` on endpoint | Agent not running | Start the agent on the specified port |
-| `Timeout` during testing | Insufficient time | Increase `timeout_seconds` in the suite |
-| `ValidationError: Duplicate test ID` | Two tests share an id | Make IDs unique |
-| `Scoring weights must sum to 1.0` | Invalid weights | Check quality+completeness+efficiency+cost=1.0 |
-| Dashboard won't start | `dashboard` extra missing | `uv sync --extra dashboard` |
+| Проблема | Причина | Решение |
+|----------|---------|---------|
+| `ModuleNotFoundError: anthropic` | Не установлен extra `llm` | `uv sync --extra llm` |
+| `ANTHROPIC_API_KEY not set` | Нет API-ключа | `export ANTHROPIC_API_KEY=sk-ant-...` |
+| `Connection refused` на endpoint | Агент не запущен | Запустите агент на указанном порту |
+| `Timeout` при тестировании | Мало времени | Увеличьте `timeout_seconds` в suite |
+| `ValidationError: Duplicate test ID` | Два теста с одинаковым id | Сделайте id уникальными |
+| `Scoring weights must sum to 1.0` | Неверные веса | Проверьте quality+completeness+efficiency+cost=1.0 |
+| Dashboard не запускается | Нет extra `dashboard` | `uv sync --extra dashboard` |
 
 ---
 
-## 8. Project Structure (Reference)
+## 8. Структура проекта (справка)
 
 ```
 atp-platform/
 ├── atp/
-│   ├── cli/              # CLI commands (entry point)
-│   ├── core/             # Settings, security, telemetry
+│   ├── cli/              # CLI-команды (entry point)
+│   ├── core/             # Настройки, безопасность, телеметрия
 │   ├── protocol/         # ATP Protocol: Request/Response/Event
-│   ├── loader/           # YAML test suite parsing
-│   ├── runner/           # Test execution orchestration
-│   ├── adapters/         # 10 adapters for connecting agents
-│   ├── evaluators/       # 11 types of result checks
-│   ├── reporters/        # 4 report formats
-│   ├── scoring/          # Score aggregation
-│   ├── statistics/       # Statistical analysis (mean, CI, t-test)
-│   ├── baseline/         # Baseline management
+│   ├── loader/           # Парсинг YAML test suites
+│   ├── runner/           # Оркестрация выполнения тестов
+│   ├── adapters/         # 10 адаптеров для подключения агентов
+│   ├── evaluators/       # 11 типов проверок результатов
+│   ├── reporters/        # 4 формата отчётов
+│   ├── scoring/          # Агрегация оценок
+│   ├── statistics/       # Статистический анализ (mean, CI, t-test)
+│   ├── baseline/         # Управление базовыми линиями
 │   ├── dashboard/        # Web UI (FastAPI)
-│   ├── analytics/        # Cost tracking
-│   ├── benchmarks/       # Benchmark suites
-│   ├── chaos/            # Chaos testing
-│   ├── tracing/          # Trace recording and replay
-│   └── sdk/              # Python SDK for programmatic access
+│   ├── analytics/        # Трекинг стоимости
+│   ├── benchmarks/       # Бенчмарк-сьюты
+│   ├── chaos/            # Хаос-тестирование
+│   ├── tracing/          # Запись и воспроизведение трейсов
+│   └── sdk/              # Python SDK для программного доступа
 ├── tests/
-│   ├── unit/             # ~70% of tests
-│   ├── integration/      # ~20% of tests
-│   ├── e2e/              # ~10% of tests
-│   └── fixtures/         # Test data
+│   ├── unit/             # ~70% тестов
+│   ├── integration/      # ~20% тестов
+│   ├── e2e/              # ~10% тестов
+│   └── fixtures/         # Тестовые данные
 ├── examples/
-│   └── test_suites/      # 20+ example YAML test suites
-├── docs/                 # Documentation
-└── pyproject.toml        # Dependencies and configuration
+│   └── test_suites/      # 20+ примеров YAML test suites
+├── docs/                 # Документация
+└── pyproject.toml        # Зависимости и конфигурация
 ```

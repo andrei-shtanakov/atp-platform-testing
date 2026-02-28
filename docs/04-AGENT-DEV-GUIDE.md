@@ -1,13 +1,13 @@
-# Guide to Developing Agents for Testing on ATP Platform
+# Руководство по разработке агентов для тестирования на ATP Platform
 
-> How to create an AI agent compatible with the ATP Protocol and connect it to tests
+> Как создать AI-агента, совместимого с ATP Protocol, и подключить его к тестам
 
 ---
 
-## 1. Interaction Architecture
+## 1. Архитектура взаимодействия
 
 ```
-ATP Platform                         Your Agent
+ATP Platform                         Ваш агент
 ┌───────────┐                       ┌───────────┐
 │ Test Suite │──ATPRequest──────────►│  Agent    │
 │  (YAML)   │                       │  Logic    │
@@ -22,31 +22,31 @@ ATP Platform                         Your Agent
 └───────────┘                       └───────────┘
 ```
 
-ATP Platform sends the agent an `ATPRequest` (JSON) and expects an `ATPResponse` (JSON).
-Optionally, the agent can stream `ATPEvent` events.
+ATP Platform отправляет агенту `ATPRequest` (JSON) и ожидает `ATPResponse` (JSON).
+Опционально агент может стримить `ATPEvent` события.
 
 ---
 
-## 2. Agent Connection Options
+## 2. Варианты подключения агента
 
-| Option | Adapter | Transport | When to use |
-|--------|---------|-----------|------------|
-| HTTP API | `http` | POST JSON | Agent as a web service |
-| CLI script | `cli` | stdin/stdout | Agent as a script |
-| Docker | `container` | HTTP inside container | Isolated agent |
-| MCP Server | `mcp` | stdio/SSE | MCP-compatible server |
-| Python module | `langgraph`/`crewai`/`autogen` | Direct import | Framework-specific |
+| Вариант | Адаптер | Транспорт | Когда использовать |
+|---------|---------|-----------|-------------------|
+| HTTP API | `http` | POST JSON | Агент как веб-сервис |
+| CLI скрипт | `cli` | stdin/stdout | Агент как скрипт |
+| Docker | `container` | HTTP внутри контейнера | Изолированный агент |
+| MCP Server | `mcp` | stdio/SSE | MCP-совместимый сервер |
+| Python module | `langgraph`/`crewai`/`autogen` | Direct import | Framework-специфичный |
 
 ---
 
-## 3. HTTP Agent (Most Common)
+## 3. HTTP-агент (самый распространённый)
 
-### 3.1. Minimal HTTP Agent (FastAPI)
+### 3.1. Минимальный HTTP-агент (FastAPI)
 
 ```python
 """
-Minimal HTTP agent for ATP Platform.
-Run: uv run uvicorn agent:app --port 8000
+Минимальный HTTP-агент для ATP Platform.
+Запуск: uv run uvicorn agent:app --port 8000
 """
 import json
 from datetime import datetime, timezone
@@ -81,7 +81,7 @@ class ATPRequest(BaseModel):
 
 
 class Artifact(BaseModel):
-    type: str  # "file" or "structured"
+    type: str  # "file" или "structured"
     path: str | None = None
     name: str | None = None
     content_type: str = "text/plain"
@@ -111,13 +111,13 @@ class ATPResponse(BaseModel):
 
 @app.post("/")
 async def handle_request(request: ATPRequest) -> ATPResponse:
-    """Handle ATP request."""
+    """Обработка ATP-запроса."""
     start = datetime.now(timezone.utc)
 
     try:
-        # === Your agent logic here ===
+        # === Здесь логика вашего агента ===
         result = process_task(request.task)
-        # ==============================
+        # ===================================
 
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
 
@@ -151,16 +151,16 @@ async def health():
 
 
 def process_task(task: Task) -> str:
-    """Stub for agent logic. Replace with actual implementation."""
+    """Заглушка для логики агента. Замените на реальную реализацию."""
     return f"Processed: {task.description}"
 ```
 
-### 3.2. HTTP Agent with LLM (Anthropic)
+### 3.2. HTTP-агент с LLM (Anthropic)
 
 ```python
 """
-HTTP agent using Claude API for Code Review.
-Run: uv run uvicorn code_review_agent:app --port 8000
+HTTP-агент с вызовом Claude API для Code Review.
+Запуск: uv run uvicorn code_review_agent:app --port 8000
 """
 import os
 import time
@@ -242,7 +242,7 @@ class ATPResponse(BaseModel):
 
 @app.post("/review")
 async def review(request: ATPRequest) -> ATPResponse:
-    """Review code via Claude API."""
+    """Ревью кода через Claude API."""
     start = time.monotonic()
 
     try:
@@ -261,7 +261,7 @@ async def review(request: ATPRequest) -> ATPResponse:
         review_content = response.content[0].text
         elapsed = time.monotonic() - start
 
-        # Cost calculation: Claude Sonnet 4 pricing
+        # Подсчёт стоимости (Claude Sonnet 4 pricing)
         input_cost = response.usage.input_tokens * 3.0 / 1_000_000
         output_cost = response.usage.output_tokens * 15.0 / 1_000_000
 
@@ -301,17 +301,17 @@ async def health():
 
 ---
 
-## 4. CLI Agent
+## 4. CLI-агент
 
-### 4.1. Minimal CLI Agent
+### 4.1. Минимальный CLI-агент
 
 ```python
 """
-CLI agent for ATP Platform.
-Reads ATPRequest from stdin, writes ATPResponse to stdout.
-Events go to stderr.
+CLI-агент для ATP Platform.
+Читает ATPRequest из stdin, пишет ATPResponse в stdout.
+Events идут в stderr.
 
-Run from ATP:
+Запуск из ATP:
   uv run atp test suite.yaml --adapter=cli \
     --adapter-config='command=python' \
     --adapter-config='args=["cli_agent.py"]'
@@ -328,7 +328,7 @@ def emit_event(
     payload: dict,
     sequence: int,
 ) -> None:
-    """Send event to stderr (for observability)."""
+    """Отправить событие в stderr (для observability)."""
     event = {
         "version": "1.0",
         "task_id": task_id,
@@ -341,33 +341,33 @@ def emit_event(
 
 
 def process_task(description: str) -> str:
-    """Agent logic stub. Replace with actual implementation."""
+    """Логика агента. Замените на реальную реализацию."""
     return f"Result for: {description}"
 
 
 def main() -> None:
     start = time.monotonic()
 
-    # Read ATPRequest from stdin
+    # Читаем ATPRequest из stdin
     request_json = sys.stdin.read()
     request = json.loads(request_json)
 
     task_id = request["task_id"]
     task = request["task"]
 
-    # Event: work started
+    # Event: начало работы
     emit_event(task_id, "progress", {"message": "Starting task"}, 1)
 
     try:
-        # Process the task
+        # Обработка задачи
         result = process_task(task["description"])
 
-        # Event: completed
+        # Event: завершение
         emit_event(task_id, "progress", {"message": "Task completed"}, 2)
 
         elapsed = time.monotonic() - start
 
-        # Write ATPResponse to stdout
+        # Пишем ATPResponse в stdout
         response = {
             "version": "1.0",
             "task_id": task_id,
@@ -411,47 +411,47 @@ if __name__ == "__main__":
 
 ---
 
-## 5. Key Development Rules
+## 5. Ключевые правила разработки
 
-### 5.1. Required fields
+### 5.1. Обязательные поля
 
-**In ATPResponse**:
-- `version` — always `"1.0"`
-- `task_id` — must match exactly what came in the request
-- `status` — one of: `completed`, `failed`, `timeout`, `partial`
+**В ATPResponse**:
+- `version` — всегда `"1.0"`
+- `task_id` — точно тот, что пришёл в request
+- `status` — одно из: `completed`, `failed`, `timeout`, `partial`
 
-**In Artifact**:
-- `type` — `"file"` (text) or `"structured"` (JSON data)
-- `path` — file path (for `file` type)
-- `content` — contents (for `file` type)
-- `data` — JSON object (for `structured` type)
+**В Artifact**:
+- `type` — `"file"` (текстовый) или `"structured"` (JSON data)
+- `path` — путь к файлу (для `file` type)
+- `content` — содержимое (для `file` type)
+- `data` — JSON-объект (для `structured` type)
 
-### 5.2. Metrics
+### 5.2. Метрики
 
-Fill in `metrics` as accurately as possible — ATP uses them for:
-- **total_tokens**: cost calculation
-- **total_steps**: constraint checking
-- **wall_time_seconds**: latency checking
-- **cost_usd**: budget checking
-- **tool_calls**: behavior assertion checks
+Заполняйте `metrics` максимально точно — ATP использует их для:
+- **total_tokens**: подсчёт стоимости
+- **total_steps**: проверка constraints
+- **wall_time_seconds**: проверка latency
+- **cost_usd**: проверка бюджета
+- **tool_calls**: проверка behavior assertions
 
-### 5.3. Error handling
+### 5.3. Обработка ошибок
 
 ```python
-# Correct: return failed status with error description
+# Правильно: вернуть failed status с описанием ошибки
 return ATPResponse(
     task_id=request.task_id,
     status="failed",
     error="API key expired: unable to call LLM",
 )
 
-# Incorrect: throw exception (ATP receives HTTP 500)
+# Неправильно: бросить exception (ATP получит HTTP 500)
 raise Exception("Something went wrong")
 ```
 
 ### 5.4. Constraints
 
-The agent MUST respect constraints from the request:
+Агент ДОЛЖЕН соблюдать constraints из запроса:
 
 ```python
 constraints = request.constraints or {}
@@ -459,9 +459,9 @@ constraints = request.constraints or {}
 max_steps = constraints.get("max_steps", 50)
 timeout = constraints.get("timeout_seconds", 300)
 budget = constraints.get("budget_usd", 1.0)
-allowed_tools = constraints.get("allowed_tools")  # None = all allowed
+allowed_tools = constraints.get("allowed_tools")  # None = все
 
-# Check before each step
+# Проверяйте перед каждым шагом
 if current_step >= max_steps:
     return partial_response(status="partial")
 
@@ -471,15 +471,15 @@ if elapsed > timeout:
 
 ---
 
-## 6. Testing the Agent Locally
+## 6. Тестирование агента локально
 
-### 6.1. curl test
+### 6.1. curl-тест
 
 ```bash
-# Start the agent
+# Запустить агент
 uv run uvicorn agent:app --port 8000
 
-# Test request
+# Тест запрос
 curl -X POST http://localhost:8000/ \
   -H "Content-Type: application/json" \
   -d '{
@@ -492,7 +492,7 @@ curl -X POST http://localhost:8000/ \
   }'
 ```
 
-### 6.2. ATP test (smoke)
+### 6.2. ATP-тест (smoke)
 
 ```bash
 uv run atp test test_suites/smoke.yaml \
@@ -501,7 +501,7 @@ uv run atp test test_suites/smoke.yaml \
   -v
 ```
 
-### 6.3. CLI agent: manual test
+### 6.3. CLI-агент: ручной тест
 
 ```bash
 echo '{"version":"1.0","task_id":"t1","task":{"description":"Hello"}}' | python cli_agent.py
@@ -509,9 +509,9 @@ echo '{"version":"1.0","task_id":"t1","task":{"description":"Hello"}}' | python 
 
 ---
 
-## 7. Agent Design Patterns
+## 7. Паттерны проектирования агентов
 
-### 7.1. Agent with tool use
+### 7.1. Агент с tool use
 
 ```python
 TOOLS = {
@@ -525,10 +525,10 @@ async def execute_with_tools(
     allowed_tools: list[str] | None,
     max_steps: int,
 ) -> tuple[str, list[dict]]:
-    """Agent with tools and step limits."""
+    """Агент с инструментами и ограничением шагов."""
     events = []
     for step in range(max_steps):
-        # LLM decides which tool to call
+        # LLM решает какой tool вызвать
         action = await llm_decide(task, events)
 
         if action["type"] == "done":
@@ -554,14 +554,14 @@ async def execute_with_tools(
     return "max steps reached", events
 ```
 
-### 7.2. Agent with retry
+### 7.2. Агент с retry
 
 ```python
 async def execute_with_retry(
     task: str,
     max_retries: int = 3,
 ) -> str:
-    """Agent with retry on errors."""
+    """Агент с повторными попытками при ошибках."""
     last_error = None
     for attempt in range(max_retries):
         try:
@@ -573,21 +573,21 @@ async def execute_with_retry(
     raise last_error
 ```
 
-### 7.3. Multi-step agent
+### 7.3. Multi-step агент
 
 ```python
 async def multi_step_agent(task: Task) -> ATPResponse:
-    """Agent that breaks tasks into steps."""
-    # Step 1: Planning
+    """Агент, разбивающий задачу на шаги."""
+    # Шаг 1: Планирование
     plan = await llm_call(f"Create a plan for: {task.description}")
 
-    # Step 2: Execute each step
+    # Шаг 2: Выполнение каждого шага плана
     results = []
     for step in plan.steps:
         result = await execute_step(step)
         results.append(result)
 
-    # Step 3: Synthesize results
+    # Шаг 3: Синтез результатов
     final = await llm_call(
         f"Synthesize results: {results}"
     )
@@ -597,17 +597,17 @@ async def multi_step_agent(task: Task) -> ATPResponse:
 
 ---
 
-## 8. Pre-Connection Checklist
+## 8. Чек-лист перед подключением к ATP
 
 ```markdown
-- [ ] Agent accepts ATPRequest JSON
-- [ ] Agent returns ATPResponse JSON
-- [ ] task_id in response matches the request
-- [ ] status is correct (completed/failed/timeout/partial)
-- [ ] artifacts contain expected files
-- [ ] metrics are populated (at least wall_time_seconds)
-- [ ] Errors are returned as error field (not HTTP 500)
-- [ ] Constraints are respected (max_steps, timeout, budget)
-- [ ] Health endpoint responds (for HTTP agents)
-- [ ] Agent does not leak PII / secrets in artifacts
+- [ ] Агент принимает ATPRequest JSON
+- [ ] Агент возвращает ATPResponse JSON
+- [ ] task_id в ответе совпадает с запросом
+- [ ] status корректный (completed/failed/timeout/partial)
+- [ ] artifacts содержат ожидаемые файлы
+- [ ] metrics заполнены (хотя бы wall_time_seconds)
+- [ ] Ошибки возвращаются как error (не HTTP 500)
+- [ ] Constraints соблюдаются (max_steps, timeout, budget)
+- [ ] Health endpoint отвечает (для HTTP агентов)
+- [ ] Агент не утекает PII / секреты в artifacts
 ```

@@ -1,13 +1,13 @@
 """
-Code Review HTTP Agent for ATP Platform.
+Code Review HTTP Agent для ATP Platform.
 
-Uses Claude API to analyze code.
-Returns a structured JSON report.
+Использует Claude API для анализа кода.
+Возвращает структурированный JSON-отчёт.
 
-Run:
+Запуск:
     uv run uvicorn examples.agents.code_review_http_agent:app --port 8000
 
-Dependencies:
+Зависимости:
     uv add fastapi uvicorn anthropic
 """
 
@@ -110,7 +110,7 @@ class ATPResponse(BaseModel):
 
 @app.post("/review")
 async def review(request: ATPRequest) -> ATPResponse:
-    """Perform code review via Claude API."""
+    """Выполнить code review через Claude API."""
     start = time.monotonic()
 
     try:
@@ -169,7 +169,7 @@ async def review(request: ATPRequest) -> ATPResponse:
         review_text = response.content[0].text
         elapsed = time.monotonic() - start
 
-        # Cost: Claude Sonnet 4 pricing
+        # Стоимость: Claude Sonnet 4 pricing
         input_cost = response.usage.input_tokens * 3.0 / 1_000_000
         output_cost = response.usage.output_tokens * 15.0 / 1_000_000
 

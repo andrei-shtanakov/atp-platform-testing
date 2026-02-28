@@ -1,16 +1,16 @@
 """
-Code Review CLI Agent for ATP Platform.
+Code Review CLI Agent для ATP Platform.
 
-Reads ATPRequest from stdin, writes ATPResponse to stdout.
-Events are sent to stderr.
+Читает ATPRequest из stdin, пишет ATPResponse в stdout.
+Events отправляются в stderr.
 
-Run from ATP:
+Запуск из ATP:
     uv run atp test suite.yaml \
       --adapter=cli \
       --adapter-config='command=python' \
       --adapter-config='args=["examples/agents/code_review_cli_agent.py"]'
 
-Dependencies:
+Зависимости:
     uv add anthropic
 """
 
@@ -27,7 +27,7 @@ def emit_event(
     payload: dict,
     sequence: int,
 ) -> None:
-    """Send event to stderr."""
+    """Отправить событие в stderr."""
     event = {
         "version": "1.0",
         "task_id": task_id,
@@ -40,7 +40,7 @@ def emit_event(
 
 
 def review_code(code: str, language: str, review_type: str) -> str:
-    """Perform code review via Claude API."""
+    """Выполнить code review через Claude API."""
     import anthropic
 
     client = anthropic.Anthropic(
@@ -74,7 +74,7 @@ Respond ONLY with valid JSON. Do NOT repeat secrets or PII from the code."""
 
 
 def make_empty_review() -> str:
-    """Return response for empty code."""
+    """Ответ для пустого кода."""
     return json.dumps(
         {
             "summary": "No code to review",
@@ -93,11 +93,11 @@ def make_empty_review() -> str:
 
 
 def main() -> None:
-    """CLI agent entry point."""
+    """Точка входа CLI-агента."""
     start = time.monotonic()
     seq = 0
 
-    # Read ATPRequest from stdin
+    # Читаем ATPRequest из stdin
     request_json = sys.stdin.read()
     request = json.loads(request_json)
 
@@ -135,7 +135,7 @@ def main() -> None:
             seq,
         )
 
-        # Write ATPResponse to stdout
+        # Пишем ATPResponse в stdout
         response = {
             "version": "1.0",
             "task_id": task_id,

@@ -1,5 +1,5 @@
-# Functional tests for Code Review Agent
-# Run:
+# Функциональные тесты для Code Review Agent
+# Запуск:
 #   uv run atp test examples/test_suites/code_review_functional.yaml \
 #     --adapter=http \
 #     --adapter-config='endpoint=http://localhost:8000/review' \
@@ -7,7 +7,7 @@
 
 test_suite: "code_review_functional"
 version: "1.0"
-description: "Functional tests: bug detection, style, performance analysis"
+description: "Функциональные тесты: обнаружение багов, стиля, производительности"
 
 defaults:
   runs_per_test: 3
@@ -32,7 +32,7 @@ agents:
 
 tests:
   - id: "FN-001"
-    name: "Clean code -- no issues expected"
+    name: "Чистый код -- нет замечаний"
     tags: ["functional", "positive"]
     task:
       description: "Review this clean, well-written Python code. It should have no issues."
@@ -73,7 +73,7 @@ tests:
           instruction: "The review should confirm the code is clean and well-structured with few or no issues"
 
   - id: "FN-002"
-    name: "Detects multiple bugs"
+    name: "Обнаружение нескольких багов"
     tags: ["functional", "bugs"]
     task:
       description: "Review this buggy Python code. Find all bugs."
@@ -111,7 +111,7 @@ tests:
           instruction: "Check that the review identifies at least 3 bugs: division by zero, incorrect max initialization, and dict mutation"
 
   - id: "FN-003"
-    name: "Detects performance issues"
+    name: "Обнаружение проблем производительности"
     tags: ["functional", "performance"]
     task:
       description: "Review this code for performance issues"
@@ -153,7 +153,7 @@ tests:
           instruction: "Check that the review identifies O(n^2) complexity in find_duplicates and redundant linear search in count_words, and suggests using sets/Counter"
 
   - id: "FN-004"
-    name: "Detects PEP 8 style violations"
+    name: "Обнаружение нарушений стиля PEP 8"
     tags: ["functional", "style"]
     task:
       description: "Review this code for PEP 8 style violations"
@@ -188,7 +188,7 @@ tests:
           instruction: "Review should identify: wildcard import, function/class naming (should be snake_case/PascalCase), missing spaces around operators, unnecessary parentheses in if, redundant else"
 
   - id: "FN-005"
-    name: "Reviews complex function adequately"
+    name: "Обзор сложной функции"
     tags: ["functional", "complex"]
     task:
       description: "Review this complex function for readability and correctness"
@@ -243,7 +243,7 @@ tests:
           instruction: "Review should provide meaningful analysis of: import inside function, type conversion edge cases, function complexity, and suggest refactoring"
 
   - id: "FN-006"
-    name: "Handles empty code gracefully"
+    name: "Корректная обработка пустого кода"
     tags: ["functional", "edge_case"]
     task:
       description: "Review this empty/minimal code"
