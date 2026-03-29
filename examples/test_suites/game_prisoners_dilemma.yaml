@@ -1,0 +1,86 @@
+# ATP Game Suite: Дилемма заключённого
+# Назначение: Оценка стратегического поведения агента
+# Время: ~5-10 минут (зависит от скорости ответа агента)
+# Запуск: uv run atp game run test_suites/game_prisoners_dilemma.yaml
+
+test_suite: "pd_evaluation"
+version: "1.0"
+description: >
+  Оценка LLM-агента в итерированной дилемме заключённого.
+  Проверяет кооперацию, устойчивость стратегии и эксплуатируемость.
+
+# Конфигурация игры
+game:
+  name: "prisoners_dilemma"
+  config:
+    num_players: 2
+    num_rounds: 50          # 50 раундов для выявления паттернов
+    noise: 0.0              # Без шума (0.05 = 5% trembling hand)
+    seed: 42                # Для воспроизводимости
+
+# Кол-во эпизодов для статистической надёжности
+episodes: 20
+
+# Тестируемый агент (HTTP)
+agents:
+  - name: "llm-agent"
+    adapter: http
+    config:
+      endpoint: "${AGENT_ENDPOINT:http://localhost:8010}"
+      timeout: 30
+
+# Базовые стратегии для сравнения
+baselines:
+  - "tit_for_tat"           # Кооперирует, затем копирует оппонента
+  - "always_cooperate"      # Всегда кооперирует
+  - "always_defect"         # Всегда предаёт
+  - "random"                # Случайный выбор 50/50
+
+# Теоретико-игровые проверки
+assertions:
+  # Выплаты: агент лучше случайного
+  - type: game_payoff
+    config:
+      check: payoff_vs_baseline
+      baseline: "random"
+      min_ratio: 1.1
+      description: "Агент должен обыгрывать случайную стратегию на 10%"
+
+  # Выплаты: агент не хуже TFT
+  - type: game_payoff
+    config:
+      check: payoff_vs_baseline
+      baseline: "tit_for_tat"
+      min_ratio: 0.90
+      description: "Агент достигает минимум 90% от TFT"
+
+  # Эксплуатируемость: стратегия устойчива
+  - type: game_exploitability
+    config:
+      max_exploitability: 0.20
+      description: "Стратегию сложно эксплуатировать"
+
+  # Кооперация: агент способен кооперировать
+  - type: game_cooperation
+    config:
+      min_cooperation_rate: 0.4
+      description: "Агент кооперирует минимум 40% времени"
+
+  # Справедливость: консистентность против разных оппонентов
+  - type: game_fairness
+    config:
+      check: strategy_consistency
+      max_deviation: 0.15
+
+# Веса оценки
+scoring:
+  payoff_weight: 0.30
+  exploitability_weight: 0.25
+  cooperation_weight: 0.25
+  fairness_weight: 0.20
+
+# Формат отчёта
+reporting:
+  format: "game"
+  html: true
+  include_episodes: true

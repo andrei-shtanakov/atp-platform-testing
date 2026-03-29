@@ -1,0 +1,62 @@
+# ATP Game Suite: Аукцион (Code Writer Agents)
+# Запуск: uv run atp game run test_suites/game_auction.yaml
+
+test_suite: "auction_code_writers"
+version: "1.0"
+description: >
+  Оценка стратегии ставок агента в sealed-bid аукционах.
+  Проверяет оптимальность ставок в first-price и second-price форматах.
+
+game:
+  name: "sealed_bid_auction"
+  config:
+    num_players: 3
+    num_rounds: 1
+    seed: 42
+  variants:
+    - name: "first_price"
+      auction_type: "first_price"
+      valuation_range: [0, 100]
+    - name: "second_price"
+      auction_type: "second_price"
+      valuation_range: [0, 100]
+
+episodes: 30
+
+agents:
+  - name: "game-agent"
+    adapter: http
+    config:
+      endpoint: "http://localhost:8010"
+      timeout: 30
+
+baselines:
+  - "truthful"
+  - "shade_half"
+  - "random"
+
+assertions:
+  - type: game_payoff
+    config:
+      check: min_payoff
+      threshold: 0.0
+      aggregation: "mean"
+
+  - type: game_equilibrium
+    config:
+      check: nash_distance
+      max_distance: 0.15
+
+  - type: game_exploitability
+    config:
+      max_exploitability: 0.25
+
+scoring:
+  payoff_weight: 0.35
+  exploitability_weight: 0.30
+  cooperation_weight: 0.0
+  fairness_weight: 0.35
+
+reporting:
+  format: "game"
+  html: true

@@ -254,3 +254,42 @@ atp-platform-testing/
 └── docs/
     └── 04-AGENT-DEV-GUIDE.md
 ```
+
+---
+
+## 9. Лабораторная работа: сравнение Code Writer агентов
+
+Готовый runnable-пример, созданный по этой методологии, находится в:
+
+```
+examples/code-writer-lab/
+```
+
+**Задача:** сравнить двух AI-агентов для генерации Python-кода:
+- **Agent A**: OpenAI GPT-4o (порт 8001)
+- **Agent B**: Anthropic Claude Sonnet 4 (порт 8002)
+
+Оба получают одинаковое задание (fibonacci, csv_parser, api_client) → ATP оценивает результат по smoke/functional/quality/game-theoretic assertions.
+
+**Что внутри:**
+- `agents/` — два HTTP-агента (OpenAI, Anthropic) + игровой агент
+- `test_suites/` — smoke, functional, quality + game-theoretic сьюты
+- `fixtures/` — задания на код + pytest-тесты для проверки сгенерированного кода
+- `docs/` — план тестирования, контракт, инструкция по запуску
+- `steps.md` — пошаговый чек-лист выполнения
+
+**Быстрый запуск:**
+```bash
+cd examples/code-writer-lab
+cp .env.example .env
+# Заполнить API-ключи в .env
+
+# Запуск агентов
+uv run uvicorn agents.openai_agent:app --port 8001 &
+uv run uvicorn agents.anthropic_agent:app --port 8002 &
+
+# Запуск тестов
+uv run atp test test_suites/smoke.yaml -v
+```
+
+Подробности: [`examples/code-writer-lab/docs/03-run-guide.md`](examples/code-writer-lab/docs/03-run-guide.md)

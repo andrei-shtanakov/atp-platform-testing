@@ -45,6 +45,7 @@ uv sync --extra dashboard   # FastAPI dashboard
 uv sync --extra llm         # anthropic SDK (для LLM evaluator)
 uv sync --extra tui         # Terminal UI
 uv sync --extra analytics   # Excel export
+uv sync --extra games       # game-environments + atp-games (теория игр)
 ```
 
 ### 2.3. Проверка установки
@@ -122,27 +123,35 @@ CLI флаги > Переменные окружения (ATP_*) > atp.config.ya
 
 ## 4. Первый запуск
 
-### 4.1. Инициализация проекта
+### 4.1. Быстрый старт (quickstart)
+
+```bash
+uv run atp quickstart
+```
+
+Создаёт минимальный проект с `atp-suite.yaml` и примером smoke-теста — самый быстрый способ начать.
+
+### 4.2. Инициализация проекта (полная)
 
 ```bash
 uv run atp init
 ```
 
-Создаёт начальную структуру с примерами.
+Создаёт полную начальную структуру с примерами.
 
-### 4.2. Валидация тест-сьюта
+### 4.3. Валидация тест-сьюта
 
 ```bash
 uv run atp validate --suite=examples/test_suites/01_smoke_tests.yaml
 ```
 
-### 4.3. Просмотр тестов без запуска
+### 4.4. Просмотр тестов без запуска
 
 ```bash
 uv run atp test examples/test_suites/01_smoke_tests.yaml --list-only
 ```
 
-### 4.4. Запуск smoke-тестов
+### 4.5. Запуск smoke-тестов
 
 ```bash
 # Против HTTP-агента
@@ -218,12 +227,12 @@ uv run atp baseline compare suite.yaml -b baseline.json
 # JSON-отчёт
 uv run atp test suite.yaml --output=json --output-file=results.json
 
-# HTML-отчёт (самодостаточный файл)
-uv run atp test suite.yaml --output=html --output-file=report.html
-
 # JUnit XML (для CI/CD)
 uv run atp test suite.yaml --output=junit --output-file=results.xml
 ```
+
+> **Примечание**: CLI поддерживает форматы `console`, `json` и `junit`.
+> HTML-отчёты генерируются через Python SDK или reporter API.
 
 ### 6.4. Фильтрация по тегам
 
@@ -248,7 +257,74 @@ uv run atp dashboard
 ### 6.6. Game-Theoretic оценка
 
 ```bash
-uv run atp game examples/test_suites/11_game_prisoners_dilemma.yaml
+# Запуск игрового сценария
+uv run atp game run test_suites/game_prisoners_dilemma.yaml
+
+# Список доступных игр
+uv run atp game list
+# prisoners_dilemma, stag_hunt, battle_of_sexes,
+# public_goods, auction, colonel_blotto, congestion
+
+# Информация об игре
+uv run atp game info prisoners_dilemma
+
+# Турнир (все стратегии друг против друга)
+uv run atp game tournament test_suites/game_prisoners_dilemma.yaml
+
+# Таблица перекрёстных результатов
+uv run atp game crossplay test_suites/game_prisoners_dilemma.yaml
+```
+
+Отчёт включает: средние выплаты, уровень кооперации, эксплуатируемость, расстояние до равновесия Нэша. Формат отчёта — `game` (GameReporter), поддерживает JSON, HTML и CSV-экспорт.
+
+> Подробнее: [05-GAME-TESTING-GUIDE.md](docs/05-GAME-TESTING-GUIDE.md)
+
+### 6.7. Каталог тестов
+
+```bash
+# Просмотр каталога готовых тестовых сьютов
+uv run atp catalog list
+
+# Информация о конкретном сьюте
+uv run atp catalog info smoke/basic
+
+# Запуск сьюта из каталога
+uv run atp catalog run smoke/basic \
+  --adapter=http \
+  --adapter-config='endpoint=http://localhost:8000'
+
+# Публикация своего сьюта в каталог
+uv run atp catalog publish test_suites/my_suite.yaml
+```
+
+Каталог содержит курированные тестовые сценарии (smoke, functional, security) — удобная стартовая точка перед написанием собственных тестов.
+
+---
+
+### 6.8. Дополнительные CLI-команды
+
+```bash
+# Сравнение нескольких моделей/агентов
+uv run atp compare suite.yaml --agents=agent1,agent2
+
+# Оценка стоимости запуска
+uv run atp estimate suite.yaml
+
+# Генерация тест-сьютов
+uv run atp generate
+
+# Бенчмарки
+uv run atp benchmark
+
+# Управление трейсами
+uv run atp traces list
+uv run atp replay <trace-id>
+
+# Плагины
+uv run atp plugins list
+
+# Terminal UI (требует [tui] extra)
+uv run atp tui
 ```
 
 ---
@@ -264,6 +340,7 @@ uv run atp game examples/test_suites/11_game_prisoners_dilemma.yaml
 | `ValidationError: Duplicate test ID` | Два теста с одинаковым id | Сделайте id уникальными |
 | `Scoring weights must sum to 1.0` | Неверные веса | Проверьте quality+completeness+efficiency+cost=1.0 |
 | Dashboard не запускается | Нет extra `dashboard` | `uv sync --extra dashboard` |
+| `game-environments not found` | Нет extra `games` | `uv sync --extra games` |
 
 ---
 
@@ -294,6 +371,11 @@ atp-platform/
 │   ├── integration/      # ~20% тестов
 │   ├── e2e/              # ~10% тестов
 │   └── fixtures/         # Тестовые данные
+├── catalog/          # Каталог курированных тестов
+│   ├── generator/        # Генерация тест-сьютов
+│   └── sdk/              # Python SDK для программного доступа
+├── game-environments/    # Библиотека игр (7 игр, 25+ стратегий)
+├── atp-games/            # ATP-плагин для теоретико-игровой оценки
 ├── examples/
 │   └── test_suites/      # 20+ примеров YAML test suites
 ├── docs/                 # Документация

@@ -38,6 +38,7 @@
 | **Производительность** | Скорость, стоимость | Латентность, токены, USD |
 | **Надёжность** | Стабильность при повторах | Дисперсия результатов, ошибки |
 | **Взаимодействие** | Работа нескольких агентов | Comparison, collaboration, handoff |
+| **Теоретико-игровой** | Стратегическое поведение агента | Кооперация, эксплуатируемость, равновесие Нэша |
 
 ### 2.2. Определение приоритетов
 
@@ -285,6 +286,7 @@ tests:
 | `file_exists` | filesystem | Проверка файлов |
 | `file_contains` | filesystem | Содержимое файлов |
 | `dir_exists` | filesystem | Проверка директорий |
+| `composite` | composite | Комбинирование проверок (AND/OR/NOT логика) |
 
 ### 5.3. Переменные в YAML
 
@@ -296,6 +298,82 @@ endpoint: "${API_ENDPOINT}"
 endpoint: "${API_ENDPOINT:http://localhost:8000}"
 api_key: "${API_KEY:test_key}"
 ```
+
+### 5.4. Теоретико-игровой тест-сьют
+
+Для оценки стратегического поведения агента используется отдельный формат YAML:
+
+```yaml
+test_suite: "prisoners_dilemma_evaluation"
+version: "1.0"
+description: "Оценка поведения агента в итерированной дилемме заключённого"
+
+# Конфигурация игры
+game:
+  name: "prisoners_dilemma"
+  config:
+    num_players: 2
+    num_rounds: 50
+    noise: 0.0           # trembling hand (0 = без шума)
+    seed: 42
+
+episodes: 20              # Кол-во эпизодов для статистики
+
+# Тестируемый агент
+agents:
+  - name: "llm-agent"
+    adapter: http
+    config:
+      endpoint: "${AGENT_ENDPOINT:http://localhost:8010}"
+      timeout: 30
+
+# Базовые стратегии для сравнения
+baselines:
+  - "tit_for_tat"
+  - "always_cooperate"
+  - "always_defect"
+  - "random"
+
+# Теоретико-игровые assertions
+assertions:
+  - type: game_payoff
+    config:
+      check: payoff_vs_baseline
+      baseline: "random"
+      min_ratio: 1.1         # Агент лучше случайного на 10%
+
+  - type: game_exploitability
+    config:
+      max_exploitability: 0.20
+
+  - type: game_cooperation
+    config:
+      min_cooperation_rate: 0.4
+
+  - type: game_fairness
+    config:
+      check: strategy_consistency
+      max_deviation: 0.15
+
+# Веса оценки
+scoring:
+  payoff_weight: 0.30
+  exploitability_weight: 0.25
+  cooperation_weight: 0.25
+  fairness_weight: 0.20
+```
+
+Доступные игровые assertions:
+
+| Assertion | Что проверяет |
+|-----------|-------------|
+| `game_payoff` | Средняя выплата, сравнение с baseline |
+| `game_exploitability` | Насколько стратегия уязвима к эксплуатации |
+| `game_cooperation` | Уровень кооперации, тренд по раундам |
+| `game_fairness` | Консистентность стратегии против разных оппонентов |
+| `game_equilibrium` | Расстояние до равновесия Нэша |
+
+> Полное руководство: [05-GAME-TESTING-GUIDE.md](docs/05-GAME-TESTING-GUIDE.md)
 
 ---
 
@@ -486,7 +564,44 @@ jobs:
 
 ---
 
-## 10. Шаблон плана тестирования
+## 10. Шаг 8а: Генерация тестов с Claude Code
+
+Если вы используете [Claude Code](https://claude.ai/code) с загруженными skills из atp-platform, доступны два ускорителя:
+
+**`/generate-tests`** — генерация pytest-тестов для модулей ATP:
+```
+/generate-tests atp/evaluators/factuality.py
+```
+Создаёт unit-тесты с правильными fixtures, async-паттернами, AAA-структурой.
+
+**`/generate-game-tests`** — генерация игровых сценариев:
+```
+/generate-game-tests prisoners_dilemma
+```
+Создаёт YAML game suite + pytest-тесты для проверки корректности выплат, поведения стратегий и свойств равновесия.
+
+Оба skill работают как ускорители: понимание ручного процесса (Шаги 1-8) остаётся необходимым для настройки и интерпретации результатов.
+
+---
+
+## 11. Шаг 9: Каталог тестов
+
+ATP содержит каталог готовых курированных тестовых сценариев:
+
+```bash
+# Просмотр доступных сьютов
+uv run atp catalog list
+
+# Запуск сьюта из каталога
+uv run atp catalog run smoke/basic --adapter=http \
+  --adapter-config='endpoint=http://localhost:8000'
+```
+
+Используйте каталог как стартовую точку: запустите готовый сьют, изучите формат, затем адаптируйте под своего агента.
+
+---
+
+## 12. Шаблон плана тестирования
 
 ```markdown
 # План тестирования: [Имя агента]
@@ -501,6 +616,7 @@ jobs:
 - [ ] Тесты качества (N тестов)
 - [ ] Тесты безопасности (N тестов)
 - [ ] Тесты производительности (N тестов)
+- [ ] Теоретико-игровые тесты (N сценариев)
 
 ## 3. Окружение
 - Адаптер: [http/cli/mcp/...]
@@ -525,3 +641,5 @@ jobs:
 - Full suite: ежедневно
 - Baseline comparison: еженедельно
 ```
+
+> **Готовый пример:** полностью рабочая лабораторная работа по сравнению двух Code Writer агентов (GPT-4o vs Claude) — [`examples/code-writer-lab/`](examples/code-writer-lab/). Включает агентов, тест-сьюты, фикстуры и пошаговые инструкции.

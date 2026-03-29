@@ -1,0 +1,56 @@
+# ATP Game Suite: Дилемма заключённого (Code Writer Agents)
+# Запуск: uv run atp game run test_suites/game_prisoners_dilemma.yaml
+
+test_suite: "pd_code_writers"
+version: "1.0"
+description: >
+  Оценка стратегического поведения Code Writer агента
+  в итерированной дилемме заключённого.
+
+game:
+  name: "prisoners_dilemma"
+  config:
+    num_players: 2
+    num_rounds: 50
+    noise: 0.0
+    seed: 42
+
+episodes: 20
+
+agents:
+  - name: "game-agent"
+    adapter: http
+    config:
+      endpoint: "http://localhost:8010"
+      timeout: 30
+
+baselines:
+  - "tit_for_tat"
+  - "always_cooperate"
+  - "always_defect"
+  - "random"
+
+assertions:
+  - type: game_payoff
+    config:
+      check: payoff_vs_baseline
+      baseline: "random"
+      min_ratio: 1.1
+
+  - type: game_exploitability
+    config:
+      max_exploitability: 0.20
+
+  - type: game_cooperation
+    config:
+      min_cooperation_rate: 0.4
+
+scoring:
+  payoff_weight: 0.35
+  exploitability_weight: 0.30
+  cooperation_weight: 0.20
+  fairness_weight: 0.15
+
+reporting:
+  format: "game"
+  html: true
