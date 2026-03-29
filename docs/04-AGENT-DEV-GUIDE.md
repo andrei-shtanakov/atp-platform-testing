@@ -36,6 +36,7 @@ Optionally, the agent can stream `ATPEvent` events.
 | Docker | `container` | HTTP inside container | Isolated agent |
 | MCP Server | `mcp` | stdio/SSE | MCP-compatible server |
 | Python module | `langgraph`/`crewai`/`autogen` | Direct import | Framework-specific |
+| Game Agent | `http` | POST JSON | Game-playing agent for game-theoretic tests |
 
 ---
 
@@ -595,6 +596,131 @@ async def multi_step_agent(task: Task) -> ATPResponse:
     return build_response(final, artifacts=results)
 ```
 
+### 7.4. Game-theoretic testing agent
+
+A game agent receives a description of the game situation and returns a decision (action).
+
+**Input format (in `task.description`):**
+```
+You are playing Prisoner's Dilemma. Round 3 of 50.
+Your role: player_0.
+Available actions: cooperate, defect.
+History: [round 0: you=cooperate, opponent=cooperate], ...
+Choose your action.
+```
+
+**Expected response format (structured artifact):**
+```json
+{"action": "cooperate", "reasoning": "Opponent cooperated last round"}
+```
+
+**Minimal game agent (Anthropic Claude):**
+
+```python
+"""
+Game agent for ATP game-theoretic testing.
+Run: uv run uvicorn game_agent:app --port 8010
+"""
+import json
+import os
+import re
+import time
+
+import anthropic
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI(title="Game Agent (Claude)")
+client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+
+SYSTEM_PROMPT = """\
+You are a strategic game-playing AI agent.
+Analyze the game state and choose an action.
+Respond with ONLY a JSON object:
+{"action": "<chosen_action>", "reasoning": "<brief explanation>"}
+"""
+
+
+class Task(BaseModel):
+    description: str
+    input_data: dict | None = None
+    expected_artifacts: list[str] | None = None
+
+
+class ATPRequest(BaseModel):
+    version: str = "1.0"
+    task_id: str
+    task: Task
+    constraints: dict | None = None
+    context: dict | None = None
+    metadata: dict | None = None
+
+
+class ATPResponse(BaseModel):
+    version: str = "1.0"
+    task_id: str
+    status: str
+    artifacts: list[dict] = []
+    metrics: dict = {}
+    error: str | None = None
+
+
+def extract_json(text: str) -> dict | None:
+    """Extract JSON from LLM response."""
+    text = text.strip()
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group())
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+@app.post("/")
+async def handle_request(request: ATPRequest) -> ATPResponse:
+    start = time.monotonic()
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=256,
+            temperature=0.3,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": request.task.description}],
+        )
+        raw = response.content[0].text
+        parsed = extract_json(raw) or {"action": raw.strip(), "reasoning": ""}
+        elapsed = time.monotonic() - start
+
+        return ATPResponse(
+            task_id=request.task_id,
+            status="completed",
+            artifacts=[{"type": "structured", "name": "game_action", "data": parsed}],
+            metrics={
+                "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                "llm_calls": 1,
+                "wall_time_seconds": round(elapsed, 3),
+            },
+        )
+    except Exception as e:
+        return ATPResponse(
+            task_id=request.task_id,
+            status="failed",
+            error=str(e),
+        )
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "type": "game_agent"}
+```
+
+**Key differences from a regular agent:**
+- Response is a `structured` artifact with `{"action": ..., "reasoning": ...}`
+- `action` must be one of the `available_actions`
+- Lower temperature (0.3) for more deterministic behavior
+- Shorter timeout (agent makes one decision per turn)
+
 ---
 
 ## 8. Pre-Connection Checklist
@@ -610,4 +736,9 @@ async def multi_step_agent(task: Task) -> ATPResponse:
 - [ ] Constraints are respected (max_steps, timeout, budget)
 - [ ] Health endpoint responds (for HTTP agents)
 - [ ] Agent does not leak PII / secrets in artifacts
+
+### Additional for game agents:
+- [ ] Response contains `{"action": ..., "reasoning": ...}`
+- [ ] `action` is one of `available_actions` from the game description
+- [ ] Agent parses move history from `task.description`
 ```

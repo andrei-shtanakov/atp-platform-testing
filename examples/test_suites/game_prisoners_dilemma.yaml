@@ -1,0 +1,86 @@
+# ATP Game Suite: Prisoner's Dilemma
+# Purpose: Evaluate an agent's strategic behavior
+# Time: ~5-10 minutes (depends on agent response speed)
+# Run: uv run atp game run test_suites/game_prisoners_dilemma.yaml
+
+test_suite: "pd_evaluation"
+version: "1.0"
+description: >
+  Evaluate an LLM agent in iterated Prisoner's Dilemma.
+  Tests cooperation, strategy robustness, and exploitability.
+
+# Game configuration
+game:
+  name: "prisoners_dilemma"
+  config:
+    num_players: 2
+    num_rounds: 50          # 50 rounds to reveal patterns
+    noise: 0.0              # No noise (0.05 = 5% trembling hand)
+    seed: 42                # For reproducibility
+
+# Number of episodes for statistical reliability
+episodes: 20
+
+# Agent under test (HTTP)
+agents:
+  - name: "llm-agent"
+    adapter: http
+    config:
+      endpoint: "${AGENT_ENDPOINT:http://localhost:8010}"
+      timeout: 30
+
+# Baseline strategies for comparison
+baselines:
+  - "tit_for_tat"           # Cooperate, then copy opponent
+  - "always_cooperate"      # Always cooperate
+  - "always_defect"         # Always defect
+  - "random"                # Random choice 50/50
+
+# Game-theoretic assertions
+assertions:
+  # Payoff: agent outperforms random
+  - type: game_payoff
+    config:
+      check: payoff_vs_baseline
+      baseline: "random"
+      min_ratio: 1.1
+      description: "Agent should outperform the random strategy by 10%"
+
+  # Payoff: agent no worse than TFT
+  - type: game_payoff
+    config:
+      check: payoff_vs_baseline
+      baseline: "tit_for_tat"
+      min_ratio: 0.90
+      description: "Agent achieves at least 90% of TFT"
+
+  # Exploitability: strategy is robust
+  - type: game_exploitability
+    config:
+      max_exploitability: 0.20
+      description: "Strategy is hard to exploit"
+
+  # Cooperation: agent is capable of cooperating
+  - type: game_cooperation
+    config:
+      min_cooperation_rate: 0.4
+      description: "Agent cooperates at least 40% of the time"
+
+  # Fairness: consistency against different opponents
+  - type: game_fairness
+    config:
+      check: strategy_consistency
+      max_deviation: 0.15
+
+# Scoring weights
+scoring:
+  payoff_weight: 0.30
+  exploitability_weight: 0.25
+  cooperation_weight: 0.25
+  fairness_weight: 0.20
+
+# Report format
+reporting:
+  format: "game"
+  html: true
+  include_episodes: true

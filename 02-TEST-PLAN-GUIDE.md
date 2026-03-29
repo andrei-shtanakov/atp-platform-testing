@@ -38,6 +38,7 @@ Step 8: Set up CI/CD
 | **Performance** | Speed, cost | Latency, tokens, USD |
 | **Reliability** | Stability across repeated runs | Result variance, errors |
 | **Interaction** | Multi-agent collaboration | Comparison, collaboration, handoff |
+| **Game-theoretic** | Strategic agent behavior | Cooperation, exploitability, Nash equilibrium |
 
 ### 2.2. Setting priorities
 
@@ -285,6 +286,7 @@ tests:
 | `file_exists` | filesystem | File checks |
 | `file_contains` | filesystem | File content checks |
 | `dir_exists` | filesystem | Directory checks |
+| `composite` | composite | Combine checks (AND/OR/NOT logic) |
 
 ### 5.3. Variables in YAML
 
@@ -296,6 +298,82 @@ endpoint: "${API_ENDPOINT}"
 endpoint: "${API_ENDPOINT:http://localhost:8000}"
 api_key: "${API_KEY:test_key}"
 ```
+
+### 5.4. Game-theoretic test suite
+
+For evaluating strategic agent behavior, a dedicated YAML format is used:
+
+```yaml
+test_suite: "prisoners_dilemma_evaluation"
+version: "1.0"
+description: "Evaluate agent behavior in iterated Prisoner's Dilemma"
+
+# Game configuration
+game:
+  name: "prisoners_dilemma"
+  config:
+    num_players: 2
+    num_rounds: 50
+    noise: 0.0           # trembling hand (0 = no noise)
+    seed: 42
+
+episodes: 20              # Number of episodes for statistics
+
+# Agent under test
+agents:
+  - name: "llm-agent"
+    adapter: http
+    config:
+      endpoint: "${AGENT_ENDPOINT:http://localhost:8010}"
+      timeout: 30
+
+# Baseline strategies for comparison
+baselines:
+  - "tit_for_tat"
+  - "always_cooperate"
+  - "always_defect"
+  - "random"
+
+# Game-theoretic assertions
+assertions:
+  - type: game_payoff
+    config:
+      check: payoff_vs_baseline
+      baseline: "random"
+      min_ratio: 1.1         # Agent outperforms random by 10%
+
+  - type: game_exploitability
+    config:
+      max_exploitability: 0.20
+
+  - type: game_cooperation
+    config:
+      min_cooperation_rate: 0.4
+
+  - type: game_fairness
+    config:
+      check: strategy_consistency
+      max_deviation: 0.15
+
+# Scoring weights
+scoring:
+  payoff_weight: 0.30
+  exploitability_weight: 0.25
+  cooperation_weight: 0.25
+  fairness_weight: 0.20
+```
+
+Available game assertions:
+
+| Assertion | What it checks |
+|-----------|---------------|
+| `game_payoff` | Average payoff, comparison with baseline |
+| `game_exploitability` | How vulnerable the strategy is to exploitation |
+| `game_cooperation` | Cooperation rate, trend across rounds |
+| `game_fairness` | Strategy consistency against different opponents |
+| `game_equilibrium` | Distance to Nash equilibrium |
+
+> Full guide: [05-GAME-TESTING-GUIDE.md](docs/05-GAME-TESTING-GUIDE.md)
 
 ---
 
@@ -486,7 +564,44 @@ jobs:
 
 ---
 
-## 10. Test Plan Template
+## 10. Step 8a: Test Generation with Claude Code
+
+If you use [Claude Code](https://claude.ai/code) with ATP Platform skills loaded, two accelerators are available:
+
+**`/generate-tests`** -- generate pytest tests for ATP modules:
+```
+/generate-tests atp/evaluators/factuality.py
+```
+Creates unit tests with proper fixtures, async patterns, and AAA structure.
+
+**`/generate-game-tests`** -- generate game scenarios:
+```
+/generate-game-tests prisoners_dilemma
+```
+Creates a YAML game suite plus pytest tests for validating payoffs, strategy behavior, and equilibrium properties.
+
+Both skills work as accelerators: understanding the manual process (Steps 1-8) is still necessary for tuning and interpreting results.
+
+---
+
+## 11. Step 9: Test Catalog
+
+ATP includes a catalog of curated, ready-to-run test scenarios:
+
+```bash
+# Browse available suites
+uv run atp catalog list
+
+# Run a suite from the catalog
+uv run atp catalog run smoke/basic --adapter=http \
+  --adapter-config='endpoint=http://localhost:8000'
+```
+
+Use the catalog as a starting point: run a ready-made suite, study the format, then adapt it for your agent.
+
+---
+
+## 12. Test Plan Template
 
 ```markdown
 # Test Plan: [Agent Name]
@@ -501,6 +616,7 @@ jobs:
 - [ ] Quality tests (N tests)
 - [ ] Security tests (N tests)
 - [ ] Performance tests (N tests)
+- [ ] Game-theoretic tests (N scenarios)
 
 ## 3. Environment
 - Adapter: [http/cli/mcp/...]
@@ -525,3 +641,5 @@ jobs:
 - Full suite: daily
 - Baseline comparison: weekly
 ```
+
+> **Ready-made example:** A fully runnable lab comparing two Code Writer agents (GPT-4o vs Claude) — [`examples/code-writer-lab/`](examples/code-writer-lab/). Includes agents, test suites, fixtures, and step-by-step instructions.

@@ -168,12 +168,12 @@ fixtures/
 
 | ID | Name | Input | Assertion |
 |----|------|-------|-----------|
-| FN-001 | Clean code -- no issues | clean_code.py | llm_assessment(completeness >= 0.9), issues.length == 0 |
-| FN-002 | Buggy code -- finds errors | buggy_code.py | llm_assessment(quality >= 0.8), issues.length >= 3 |
+| FN-001 | Clean code -- no issues | clean_code.py | llm_eval(completeness >= 0.9), issues.length == 0 |
+| FN-002 | Buggy code -- finds errors | buggy_code.py | llm_eval(quality >= 0.8), issues.length >= 3 |
 | FN-003 | Security -- SQL injection | security_vuln.py | contains("injection"), severity == "critical" |
 | FN-004 | Performance -- O(n^2) | performance_issues.py | contains("performance"), category == "performance" |
 | FN-005 | Style -- PEP 8 | style_violations.py | category == "style", issues >= 2 |
-| FN-006 | Complex code -- adequate review | complex_function.py | llm_assessment(quality >= 0.7) |
+| FN-006 | Complex code -- adequate review | complex_function.py | llm_eval(quality >= 0.7) |
 
 ### 5.3. Security (4 tests)
 
@@ -188,8 +188,8 @@ fixtures/
 
 | ID | Name | Assertion | Threshold |
 |----|------|-----------|-----------|
-| QL-001 | Review completeness | llm_assessment(completeness) | >= 0.85 |
-| QL-002 | Finding accuracy | llm_assessment(factual_accuracy) | >= 0.90 |
+| QL-001 | Review completeness | llm_eval(completeness) | >= 0.85 |
+| QL-002 | Finding accuracy | llm_eval(factual_accuracy) | >= 0.90 |
 | QL-003 | Clarity of explanations | style(readability) | >= 0.80 |
 | QL-004 | Professional tone | style(tone=professional) | >= 0.85 |
 
@@ -254,3 +254,42 @@ atp-platform-testing-en/
 └── docs/
     └── 04-AGENT-DEV-GUIDE.md
 ```
+
+---
+
+## 9. Lab: Comparing Code Writer Agents
+
+A fully runnable example built using this methodology is available at:
+
+```
+examples/code-writer-lab/
+```
+
+**Goal:** Compare two AI agents for Python code generation:
+- **Agent A**: OpenAI GPT-4o (port 8001)
+- **Agent B**: Anthropic Claude Sonnet 4 (port 8002)
+
+Both receive identical tasks (fibonacci, csv_parser, api_client) and ATP evaluates results across smoke/functional/quality/game-theoretic assertions.
+
+**Contents:**
+- `agents/` — two HTTP agents (OpenAI, Anthropic) + a game agent
+- `test_suites/` — smoke, functional, quality + game-theoretic suites
+- `fixtures/` — code tasks + pytest tests to verify generated code
+- `docs/` — test plan, contract, run guide
+- `steps.md` — step-by-step execution checklist
+
+**Quick start:**
+```bash
+cd examples/code-writer-lab
+cp .env.example .env
+# Fill in API keys in .env
+
+# Start agents
+uv run uvicorn agents.openai_agent:app --port 8001 &
+uv run uvicorn agents.anthropic_agent:app --port 8002 &
+
+# Run tests
+uv run atp test test_suites/smoke.yaml -v
+```
+
+Details: [`examples/code-writer-lab/docs/03-run-guide.md`](examples/code-writer-lab/docs/03-run-guide.md)
