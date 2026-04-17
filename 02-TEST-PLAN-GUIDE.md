@@ -287,8 +287,45 @@ tests:
 | `file_contains` | filesystem | File content checks |
 | `dir_exists` | filesystem | Directory checks |
 | `composite` | composite | Combine checks (AND/OR/NOT logic) |
+| `container` | container | Isolated Docker/Podman execution with resource limits |
+| `guardrails` | guardrails | Custom guardrails enforcement (Python functions) |
+| `git_commit` | git_commit | Git commit message/diff analysis |
 
-### 5.3. Variables in YAML
+### 5.3. New assertion types (v1.0)
+
+**Container** — run checks in isolated Docker/Podman containers:
+```yaml
+- type: "container"
+  config:
+    image: "python:3.12-slim"
+    command: "python -m pytest /workspace/tests/"
+    timeout: 120
+    resource_limits:
+      memory: "256m"
+      cpu: "1.0"
+```
+
+**Guardrails** — enforce custom rules via Python functions:
+```yaml
+- type: "guardrails"
+  config:
+    rules:
+      - name: "no_profanity"
+        function: "custom_checks.check_profanity"
+      - name: "max_length"
+        function: "custom_checks.check_length"
+        args: { max_chars: 5000 }
+```
+
+**Git commit** — analyze commit messages and diffs:
+```yaml
+- type: "git_commit"
+  config:
+    message_pattern: "^(feat|fix|docs|refactor): .+"
+    min_lines_changed: 1
+```
+
+### 5.4. Variables in YAML
 
 ```yaml
 # Required variable (error if not set)
@@ -299,7 +336,7 @@ endpoint: "${API_ENDPOINT:http://localhost:8000}"
 api_key: "${API_KEY:test_key}"
 ```
 
-### 5.4. Game-theoretic test suite
+### 5.5. Game-theoretic test suite
 
 For evaluating strategic agent behavior, a dedicated YAML format is used:
 

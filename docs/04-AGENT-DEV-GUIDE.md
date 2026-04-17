@@ -37,6 +37,7 @@ Optionally, the agent can stream `ATPEvent` events.
 | MCP Server | `mcp` | stdio/SSE | MCP-compatible server |
 | Python module | `langgraph`/`crewai`/`autogen` | Direct import | Framework-specific |
 | Game Agent | `http` | POST JSON | Game-playing agent for game-theoretic tests |
+| SDK (pull-model) | `sdk` | ATP SDK | Benchmark participant that pulls tasks from dashboard |
 
 ---
 

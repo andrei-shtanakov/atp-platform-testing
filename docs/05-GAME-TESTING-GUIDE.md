@@ -26,7 +26,7 @@ Standard tests verify **what** an agent does. Game tests verify **how** it makes
 
 ## 2. Available Games
 
-ATP Platform includes 7 canonical games in the `game-environments` package:
+ATP Platform includes 8 canonical games in the `game-environments` package:
 
 | Game | Action type | Players | What it tests |
 |------|------------|---------|---------------|
@@ -37,6 +37,7 @@ ATP Platform includes 7 canonical games in the `game-environments` package:
 | **Auction** | Continuous (bid) | 2+ | Optimal bidding, truthfulness |
 | **Colonel Blotto** | Structured (vector) | 2 | Resource allocation |
 | **Congestion Game** | Discrete (route) | 2-50 | Routing, load balancing |
+| **El Farol Bar** | Discrete (go/stay) | 2-100 | Minority game, bounded rationality, attendance prediction |
 
 ---
 
@@ -347,6 +348,37 @@ assertions:
       baseline: "uniform_allocation"
       min_ratio: 1.0
 ```
+
+### 6.4. El Farol Bar -- attendance prediction
+
+```yaml
+game:
+  name: "el_farol_bar"
+  config:
+    num_players: 20
+    num_rounds: 100
+    capacity_threshold: 0.6   # Bar is enjoyable if <= 60% attend
+
+episodes: 20
+
+baselines:
+  - "random"
+  - "threshold_history"       # Attend if last attendance < threshold
+
+assertions:
+  - type: game_payoff
+    config:
+      check: payoff_vs_baseline
+      baseline: "random"
+      min_ratio: 1.1
+
+  - type: game_equilibrium
+    config:
+      check: nash_distance
+      max_distance: 0.20
+```
+
+**Expectations:** a good agent learns to predict attendance and goes to the bar only when few others do (minority game dynamics).
 
 ---
 

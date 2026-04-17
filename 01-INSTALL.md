@@ -40,13 +40,19 @@ uv sync
 uv sync --all-extras
 
 # Specific extras as needed
-uv sync --extra cloud       # boto3, google-cloud, openai
-uv sync --extra dashboard   # FastAPI dashboard
+uv sync --extra cloud       # boto3, google-cloud, openai (all cloud adapters)
+uv sync --extra bedrock     # AWS Bedrock only
+uv sync --extra vertex      # Google Vertex AI only
+uv sync --extra azure-openai # Azure OpenAI only
+uv sync --extra dashboard   # FastAPI dashboard + benchmark/tournament APIs
+uv sync --extra enterprise  # SSO/SAML, Redis storage for dashboard
+uv sync --extra analytics   # dashboard analytics (cost tracking, Excel export)
 uv sync --extra llm         # anthropic SDK (for LLM evaluator)
 uv sync --extra tui         # Terminal UI
-uv sync --extra analytics   # Excel export
-uv sync --extra games       # game-environments + atp-games (game theory)
+uv sync --extra all         # everything at once
 ```
+
+> **Note:** `game-environments` and `atp-games` are workspace members and are installed automatically by `uv sync`. There is no separate `--extra games`.
 
 ### 2.3. Verify installation
 
@@ -97,6 +103,7 @@ request_timeout: 60
 # Dashboard (optional)
 dashboard_host: 127.0.0.1
 dashboard_port: 8080
+dashboard_debug: false
 ```
 
 ### 3.2. Environment variables
@@ -107,10 +114,33 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 # or
 export OPENAI_API_KEY="sk-..."
 
-# Optional
+# Optional — core
 export ATP_LOG_LEVEL=DEBUG
 export ATP_PARALLEL_WORKERS=8
 export ATP_FAIL_FAST=true
+export ATP_DEFAULT_TIMEOUT=300
+export ATP_SANDBOX_ENABLED=false
+
+# Optional — dashboard authentication
+export ATP_SECRET_KEY="your-jwt-secret"          # Required in production
+export ATP_DATABASE_URL="sqlite:///atp.db"       # SQLite default, supports PostgreSQL
+export ATP_DISABLE_AUTH=false                     # Set true for dev only
+export ATP_GITHUB_CLIENT_ID="..."                # GitHub OAuth OIDC
+export ATP_GITHUB_CLIENT_SECRET="..."
+export ATP_TOKEN_EXPIRE_MINUTES=60
+export ATP_CORS_ORIGINS=""
+
+# Optional — rate limiting
+export ATP_RATE_LIMIT_ENABLED=true
+export ATP_RATE_LIMIT_DEFAULT="60/minute"
+export ATP_RATE_LIMIT_AUTH="5/minute"
+export ATP_RATE_LIMIT_API="120/minute"
+export ATP_RATE_LIMIT_UPLOAD="10/minute"
+export ATP_RATE_LIMIT_STORAGE="memory://"         # or redis://host:port
+
+# Optional — batch & upload
+export ATP_BATCH_MAX_SIZE=10
+export ATP_UPLOAD_MAX_SIZE_MB=1
 ```
 
 ### 3.3. Configuration priority
@@ -254,6 +284,42 @@ uv run atp dashboard
 # Open: http://127.0.0.1:8080
 ```
 
+The dashboard includes:
+- **Pages**: Benchmarks, Runs (list + detail), Leaderboard, Games, Suites, Analytics
+- **Real-time updates** via HTMX auto-refresh on run detail pages
+- **Authentication**: GitHub OAuth (OIDC) + Device Flow for CLI login
+- **Authorization**: JWT tokens, RBAC (first user auto-promoted to admin)
+- **Multi-tenant** support with tenant-scoped data isolation
+- **Rate limiting** (slowapi): configurable per endpoint via `ATP_RATE_LIMIT_*` env vars
+
+**Benchmark API** (REST):
+```bash
+# Create a benchmark
+curl -X POST http://localhost:8080/api/v1/benchmarks \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name": "my-bench", "suite": {...}}'
+
+# Start a run
+curl -X POST http://localhost:8080/api/v1/runs \
+  -d '{"benchmark_id": "...", "agent_name": "my-agent"}'
+
+# Get next task (pull model)
+curl -X POST http://localhost:8080/api/v1/runs/$RUN_ID/next-task
+
+# Submit result
+curl -X POST http://localhost:8080/api/v1/runs/$RUN_ID/submit \
+  -d '{"score": 0.95, "response": {...}}'
+
+# Stream events (max 1000 per run)
+curl -X POST http://localhost:8080/api/v1/runs/$RUN_ID/events \
+  -d '[{"event_type": "progress", "payload": {...}}]'
+
+# Leaderboard
+curl http://localhost:8080/api/v1/leaderboard
+```
+
+**Webhooks**: configure `webhook_url` on a benchmark to receive POST notifications when runs complete (SSRF-protected, retry with backoff).
+
 ### 6.6. Game-theoretic evaluation
 
 ```bash
@@ -263,7 +329,7 @@ uv run atp game run test_suites/game_prisoners_dilemma.yaml
 # List available games
 uv run atp game list
 # prisoners_dilemma, stag_hunt, battle_of_sexes,
-# public_goods, auction, colonel_blotto, congestion
+# public_goods, auction, colonel_blotto, congestion, el_farol_bar
 
 # Game information
 uv run atp game info prisoners_dilemma
@@ -325,7 +391,68 @@ uv run atp plugins list
 
 # Terminal UI (requires [tui] extra)
 uv run atp tui
+
+# Budget management (cost tracking and limits)
+uv run atp budget
+
+# Experiments (A/B testing, comparisons)
+uv run atp experiment
+
+# Trend analysis (detect gradual regressions over time)
+uv run atp trend
+
+# Suite sync with remote server
+uv run atp push suite.yaml --server=https://atp.example.com
+uv run atp pull --server=https://atp.example.com
+uv run atp sync --server=https://atp.example.com
 ```
+
+### 6.9. SDK (Programmatic Access)
+
+ATP provides a Python SDK (`atp-platform-sdk` on PyPI) for benchmark participants and programmatic integration:
+
+```bash
+uv add atp-platform-sdk
+```
+
+**Async client:**
+```python
+from atp_sdk import AsyncATPClient
+
+async with AsyncATPClient(base_url="http://localhost:8080") as client:
+    # Start a benchmark run
+    run = await client.start_run(benchmark_id="bench-001", agent_name="my-agent")
+
+    # Pull tasks and submit results
+    async for task in run:
+        result = await my_agent(task)
+        await run.submit(score=result.score, response=result.data)
+
+    # Check status
+    status = await run.status()
+    print(f"Total score: {status.total_score}")
+```
+
+**Sync wrapper:**
+```python
+from atp_sdk import ATPClient
+
+client = ATPClient(base_url="http://localhost:8080")
+run = client.start_run_sync(benchmark_id="bench-001", agent_name="my-agent")
+
+# Batch API: get N tasks at once
+tasks = run.next_batch_sync(n=5)
+for task in tasks:
+    result = my_agent(task)
+    run.submit_sync(score=result.score, response=result.data)
+```
+
+**Features:**
+- `BenchmarkRun` iterator with `submit()`, `status()`, `cancel()`
+- Event streaming: `run.emit(event_type="progress", payload={...})`
+- Batch API: `next_batch(n)` for pulling multiple tasks
+- Device Flow auth for CLI login
+- Exponential-backoff retry logic built in
 
 ---
 
@@ -340,7 +467,8 @@ uv run atp tui
 | `ValidationError: Duplicate test ID` | Two tests share an id | Make IDs unique |
 | `Scoring weights must sum to 1.0` | Invalid weights | Check quality+completeness+efficiency+cost=1.0 |
 | Dashboard won't start | `dashboard` extra missing | `uv sync --extra dashboard` |
-| `game-environments not found` | Missing `games` extra | `uv sync --extra games` |
+| `game-environments not found` | Workspace not synced | `uv sync` (game-environments + atp-games are pulled in automatically as workspace members) |
+| `ModuleNotFoundError: atp_sdk` | SDK not installed | `uv add atp-platform-sdk` (or `uv sync --extra all`) |
 
 ---
 
@@ -348,36 +476,39 @@ uv run atp tui
 
 ```
 atp-platform/
-├── atp/
-│   ├── cli/              # CLI commands (entry point)
-│   ├── core/             # Settings, security, telemetry
-│   ├── protocol/         # ATP Protocol: Request/Response/Event
-│   ├── loader/           # YAML test suite parsing
-│   ├── runner/           # Test execution orchestration
-│   ├── adapters/         # 10 adapters for connecting agents
-│   ├── evaluators/       # 11 types of result checks
-│   ├── reporters/        # 4 report formats
-│   ├── scoring/          # Score aggregation
-│   ├── statistics/       # Statistical analysis (mean, CI, t-test)
-│   ├── baseline/         # Baseline management
-│   ├── dashboard/        # Web UI (FastAPI)
-│   ├── analytics/        # Cost tracking
-│   ├── benchmarks/       # Benchmark suites
-│   ├── chaos/            # Chaos testing
-│   ├── tracing/          # Trace recording and replay
-│   └── sdk/              # Python SDK for programmatic access
-├── tests/
-│   ├── unit/             # ~70% of tests
-│   ├── integration/      # ~20% of tests
-│   ├── e2e/              # ~10% of tests
-│   └── fixtures/         # Test data
-├── catalog/              # Curated test catalog
-│   ├── generator/        # Test suite generation
-│   └── sdk/              # Python SDK for programmatic access
-├── game-environments/    # Game library (7 games, 25+ strategies)
-├── atp-games/            # ATP plugin for game-theoretic evaluation
+├── atp/                           # Main namespace (symlinks + local modules)
+│   ├── cli/                       # CLI commands (entry point)
+│   ├── runner/                    # Test orchestration, sandbox
+│   ├── evaluators/                # 13 types of result checks
+│   ├── reporters/                 # 5 report formats (console, JSON, JUnit, HTML, game)
+│   ├── baseline/                  # Baseline management, regression detection
+│   ├── benchmarks/                # Benchmark suites
+│   ├── catalog/                   # Test catalog browser
+│   ├── generator/                 # Test suite generation
+│   ├── plugins/                   # Plugin ecosystem
+│   ├── sdk/                       # Programmatic SDK
+│   ├── tracing/                   # Trace replay
+│   ├── tui/                       # Terminal UI (optional)
+│   ├── performance/               # Profiling, caching
+│   └── mock_tools/                # Mock tool server
+│
+├── packages/                      # Extracted workspace members
+│   ├── atp-core/                  # Protocol, loader, scoring, statistics, streaming, chaos
+│   ├── atp-adapters/              # 10 agent adapters (http, cli, container, langgraph, crewai, autogen, mcp, bedrock, vertex, azure_openai) + SDK-pull adapter
+│   ├── atp-dashboard/             # FastAPI backend, benchmark/tournament APIs, auth, MCP tournament server
+│   └── atp-sdk/                   # Python SDK (PyPI: atp-platform-sdk) for benchmark participants
+│
+├── game-environments/             # Standalone game theory library (8 games, 25+ strategies)
+├── atp-games/                     # ATP plugin for game-theoretic evaluation
+│
+├── tests/                         # 80%+ coverage
+│   ├── unit/
+│   ├── integration/
+│   ├── e2e/
+│   └── fixtures/
 ├── examples/
-│   └── test_suites/      # 20+ example YAML test suites
-├── docs/                 # Documentation
-└── pyproject.toml        # Dependencies and configuration
+│   └── test_suites/               # 20+ example YAML test suites
+├── docs/                          # Documentation
+├── deploy/                        # Deployment configs
+└── pyproject.toml                 # Dependencies and configuration (uv workspace)
 ```
