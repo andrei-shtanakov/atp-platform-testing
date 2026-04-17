@@ -287,8 +287,45 @@ tests:
 | `file_contains` | filesystem | Содержимое файлов |
 | `dir_exists` | filesystem | Проверка директорий |
 | `composite` | composite | Комбинирование проверок (AND/OR/NOT логика) |
+| `container` | container | Изолированное выполнение в Docker/Podman с ограничениями ресурсов |
+| `guardrails` | guardrails | Пользовательские guardrails (Python-функции) |
+| `git_commit` | git_commit | Анализ сообщений коммитов и diff |
 
-### 5.3. Переменные в YAML
+### 5.3. Новые типы assertions (v1.0)
+
+**Container** — проверки в изолированных Docker/Podman-контейнерах:
+```yaml
+- type: "container"
+  config:
+    image: "python:3.12-slim"
+    command: "python -m pytest /workspace/tests/"
+    timeout: 120
+    resource_limits:
+      memory: "256m"
+      cpu: "1.0"
+```
+
+**Guardrails** — пользовательские правила через Python-функции:
+```yaml
+- type: "guardrails"
+  config:
+    rules:
+      - name: "no_profanity"
+        function: "custom_checks.check_profanity"
+      - name: "max_length"
+        function: "custom_checks.check_length"
+        args: { max_chars: 5000 }
+```
+
+**Git commit** — анализ сообщений коммитов и diff:
+```yaml
+- type: "git_commit"
+  config:
+    message_pattern: "^(feat|fix|docs|refactor): .+"
+    min_lines_changed: 1
+```
+
+### 5.4. Переменные в YAML
 
 ```yaml
 # Обязательная переменная (ошибка если не установлена)
@@ -299,7 +336,7 @@ endpoint: "${API_ENDPOINT:http://localhost:8000}"
 api_key: "${API_KEY:test_key}"
 ```
 
-### 5.4. Теоретико-игровой тест-сьют
+### 5.5. Теоретико-игровой тест-сьют
 
 Для оценки стратегического поведения агента используется отдельный формат YAML:
 

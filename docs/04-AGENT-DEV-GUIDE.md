@@ -37,6 +37,7 @@ ATP Platform отправляет агенту `ATPRequest` (JSON) и ожида
 | MCP Server | `mcp` | stdio/SSE | MCP-совместимый сервер |
 | Python module | `langgraph`/`crewai`/`autogen` | Direct import | Framework-специфичный |
 | Game Agent | `http` | POST JSON | Агент-игрок для теоретико-игровых тестов |
+| SDK (pull-модель) | `sdk` | ATP SDK | Участник бенчмарка, получающий задачи из dashboard |
 
 ---
 

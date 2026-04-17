@@ -40,13 +40,19 @@ uv sync
 uv sync --all-extras
 
 # Конкретные extras по необходимости
-uv sync --extra cloud       # boto3, google-cloud, openai
-uv sync --extra dashboard   # FastAPI dashboard
+uv sync --extra cloud       # boto3, google-cloud, openai (все облачные адаптеры)
+uv sync --extra bedrock     # только AWS Bedrock
+uv sync --extra vertex      # только Google Vertex AI
+uv sync --extra azure-openai # только Azure OpenAI
+uv sync --extra dashboard   # FastAPI dashboard + benchmark/tournament API
+uv sync --extra enterprise  # SSO/SAML, Redis-бэкенд для dashboard
+uv sync --extra analytics   # аналитика dashboard (трекинг стоимости, Excel-экспорт)
 uv sync --extra llm         # anthropic SDK (для LLM evaluator)
 uv sync --extra tui         # Terminal UI
-uv sync --extra analytics   # Excel export
-uv sync --extra games       # game-environments + atp-games (теория игр)
+uv sync --extra all         # всё сразу
 ```
+
+> **Примечание:** `game-environments` и `atp-games` — это workspace-члены, устанавливаются автоматически при `uv sync`. Отдельного `--extra games` нет.
 
 ### 2.3. Проверка установки
 
@@ -97,6 +103,7 @@ request_timeout: 60
 # Dashboard (опционально)
 dashboard_host: 127.0.0.1
 dashboard_port: 8080
+dashboard_debug: false
 ```
 
 ### 3.2. Переменные окружения
@@ -107,10 +114,33 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 # или
 export OPENAI_API_KEY="sk-..."
 
-# Опциональные
+# Опциональные — ядро
 export ATP_LOG_LEVEL=DEBUG
 export ATP_PARALLEL_WORKERS=8
 export ATP_FAIL_FAST=true
+export ATP_DEFAULT_TIMEOUT=300
+export ATP_SANDBOX_ENABLED=false
+
+# Опциональные — аутентификация dashboard
+export ATP_SECRET_KEY="your-jwt-secret"          # Обязательно в production
+export ATP_DATABASE_URL="sqlite:///atp.db"       # SQLite по умолчанию, поддерживает PostgreSQL
+export ATP_DISABLE_AUTH=false                     # true только для разработки
+export ATP_GITHUB_CLIENT_ID="..."                # GitHub OAuth OIDC
+export ATP_GITHUB_CLIENT_SECRET="..."
+export ATP_TOKEN_EXPIRE_MINUTES=60
+export ATP_CORS_ORIGINS=""
+
+# Опциональные — rate limiting
+export ATP_RATE_LIMIT_ENABLED=true
+export ATP_RATE_LIMIT_DEFAULT="60/minute"
+export ATP_RATE_LIMIT_AUTH="5/minute"
+export ATP_RATE_LIMIT_API="120/minute"
+export ATP_RATE_LIMIT_UPLOAD="10/minute"
+export ATP_RATE_LIMIT_STORAGE="memory://"         # или redis://host:port
+
+# Опциональные — batch и upload
+export ATP_BATCH_MAX_SIZE=10
+export ATP_UPLOAD_MAX_SIZE_MB=1
 ```
 
 ### 3.3. Приоритет конфигурации
@@ -254,6 +284,42 @@ uv run atp dashboard
 # Открыть: http://127.0.0.1:8080
 ```
 
+Dashboard включает:
+- **Страницы**: Benchmarks, Runs (список + детали), Leaderboard, Games, Suites, Analytics
+- **Обновления в реальном времени** через HTMX auto-refresh на страницах деталей run
+- **Аутентификация**: GitHub OAuth (OIDC) + Device Flow для CLI-логина
+- **Авторизация**: JWT-токены, RBAC (первый пользователь автоматически получает роль admin)
+- **Multi-tenant** поддержка с изоляцией данных по тенантам
+- **Rate limiting** (slowapi): настраивается по endpoint через переменные `ATP_RATE_LIMIT_*`
+
+**Benchmark API** (REST):
+```bash
+# Создать бенчмарк
+curl -X POST http://localhost:8080/api/v1/benchmarks \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name": "my-bench", "suite": {...}}'
+
+# Запустить run
+curl -X POST http://localhost:8080/api/v1/runs \
+  -d '{"benchmark_id": "...", "agent_name": "my-agent"}'
+
+# Получить следующую задачу (pull-модель)
+curl -X POST http://localhost:8080/api/v1/runs/$RUN_ID/next-task
+
+# Отправить результат
+curl -X POST http://localhost:8080/api/v1/runs/$RUN_ID/submit \
+  -d '{"score": 0.95, "response": {...}}'
+
+# Стриминг событий (макс. 1000 на run)
+curl -X POST http://localhost:8080/api/v1/runs/$RUN_ID/events \
+  -d '[{"event_type": "progress", "payload": {...}}]'
+
+# Таблица лидеров
+curl http://localhost:8080/api/v1/leaderboard
+```
+
+**Webhooks**: настройте `webhook_url` на бенчмарке для получения POST-уведомлений при завершении run (защита от SSRF, retry с backoff).
+
 ### 6.6. Game-Theoretic оценка
 
 ```bash
@@ -263,7 +329,7 @@ uv run atp game run test_suites/game_prisoners_dilemma.yaml
 # Список доступных игр
 uv run atp game list
 # prisoners_dilemma, stag_hunt, battle_of_sexes,
-# public_goods, auction, colonel_blotto, congestion
+# public_goods, auction, colonel_blotto, congestion, el_farol_bar
 
 # Информация об игре
 uv run atp game info prisoners_dilemma
@@ -325,7 +391,68 @@ uv run atp plugins list
 
 # Terminal UI (требует [tui] extra)
 uv run atp tui
+
+# Управление бюджетом (трекинг стоимости и лимиты)
+uv run atp budget
+
+# Эксперименты (A/B-тестирование, сравнения)
+uv run atp experiment
+
+# Анализ трендов (обнаружение постепенных регрессий)
+uv run atp trend
+
+# Синхронизация сьютов с удалённым сервером
+uv run atp push suite.yaml --server=https://atp.example.com
+uv run atp pull --server=https://atp.example.com
+uv run atp sync --server=https://atp.example.com
 ```
+
+### 6.9. SDK (программный доступ)
+
+ATP предоставляет Python SDK (`atp-platform-sdk` на PyPI) для участников бенчмарков и программной интеграции:
+
+```bash
+uv add atp-platform-sdk
+```
+
+**Async-клиент:**
+```python
+from atp_sdk import AsyncATPClient
+
+async with AsyncATPClient(base_url="http://localhost:8080") as client:
+    # Запустить benchmark run
+    run = await client.start_run(benchmark_id="bench-001", agent_name="my-agent")
+
+    # Получать задачи и отправлять результаты
+    async for task in run:
+        result = await my_agent(task)
+        await run.submit(score=result.score, response=result.data)
+
+    # Проверить статус
+    status = await run.status()
+    print(f"Итоговый скор: {status.total_score}")
+```
+
+**Синхронная обёртка:**
+```python
+from atp_sdk import ATPClient
+
+client = ATPClient(base_url="http://localhost:8080")
+run = client.start_run_sync(benchmark_id="bench-001", agent_name="my-agent")
+
+# Batch API: получить N задач сразу
+tasks = run.next_batch_sync(n=5)
+for task in tasks:
+    result = my_agent(task)
+    run.submit_sync(score=result.score, response=result.data)
+```
+
+**Возможности:**
+- `BenchmarkRun` итератор с `submit()`, `status()`, `cancel()`
+- Стриминг событий: `run.emit(event_type="progress", payload={...})`
+- Batch API: `next_batch(n)` для получения нескольких задач
+- Device Flow авторизация для CLI-логина
+- Встроенная логика retry с экспоненциальным backoff
 
 ---
 
@@ -340,7 +467,8 @@ uv run atp tui
 | `ValidationError: Duplicate test ID` | Два теста с одинаковым id | Сделайте id уникальными |
 | `Scoring weights must sum to 1.0` | Неверные веса | Проверьте quality+completeness+efficiency+cost=1.0 |
 | Dashboard не запускается | Нет extra `dashboard` | `uv sync --extra dashboard` |
-| `game-environments not found` | Нет extra `games` | `uv sync --extra games` |
+| `game-environments not found` | Workspace не синхронизирован | `uv sync` (game-environments + atp-games подтягиваются автоматически как workspace-члены) |
+| `ModuleNotFoundError: atp_sdk` | Не установлен SDK | `uv add atp-platform-sdk` (или `uv sync --extra all`) |
 
 ---
 
@@ -348,36 +476,39 @@ uv run atp tui
 
 ```
 atp-platform/
-├── atp/
-│   ├── cli/              # CLI-команды (entry point)
-│   ├── core/             # Настройки, безопасность, телеметрия
-│   ├── protocol/         # ATP Protocol: Request/Response/Event
-│   ├── loader/           # Парсинг YAML test suites
-│   ├── runner/           # Оркестрация выполнения тестов
-│   ├── adapters/         # 10 адаптеров для подключения агентов
-│   ├── evaluators/       # 11 типов проверок результатов
-│   ├── reporters/        # 4 формата отчётов
-│   ├── scoring/          # Агрегация оценок
-│   ├── statistics/       # Статистический анализ (mean, CI, t-test)
-│   ├── baseline/         # Управление базовыми линиями
-│   ├── dashboard/        # Web UI (FastAPI)
-│   ├── analytics/        # Трекинг стоимости
-│   ├── benchmarks/       # Бенчмарк-сьюты
-│   ├── chaos/            # Хаос-тестирование
-│   ├── tracing/          # Запись и воспроизведение трейсов
-│   └── sdk/              # Python SDK для программного доступа
-├── tests/
-│   ├── unit/             # ~70% тестов
-│   ├── integration/      # ~20% тестов
-│   ├── e2e/              # ~10% тестов
-│   └── fixtures/         # Тестовые данные
-├── catalog/          # Каталог курированных тестов
-│   ├── generator/        # Генерация тест-сьютов
-│   └── sdk/              # Python SDK для программного доступа
-├── game-environments/    # Библиотека игр (7 игр, 25+ стратегий)
-├── atp-games/            # ATP-плагин для теоретико-игровой оценки
+├── atp/                           # Главный namespace (symlinks + локальные модули)
+│   ├── cli/                       # CLI-команды (entry point)
+│   ├── runner/                    # Оркестрация тестов, sandbox
+│   ├── evaluators/                # 13 типов проверок результатов
+│   ├── reporters/                 # 5 форматов отчётов (console, JSON, JUnit, HTML, game)
+│   ├── baseline/                  # Управление базовыми линиями, обнаружение регрессий
+│   ├── benchmarks/                # Бенчмарк-сьюты
+│   ├── catalog/                   # Браузер каталога тестов
+│   ├── generator/                 # Генерация тест-сьютов
+│   ├── plugins/                   # Экосистема плагинов
+│   ├── sdk/                       # Программный SDK
+│   ├── tracing/                   # Воспроизведение трейсов
+│   ├── tui/                       # Terminal UI (опционально)
+│   ├── performance/               # Профилирование, кэширование
+│   └── mock_tools/                # Mock-сервер инструментов
+│
+├── packages/                      # Извлечённые workspace-пакеты
+│   ├── atp-core/                  # Протокол, загрузчик, скоринг, статистика, streaming, chaos
+│   ├── atp-adapters/              # 10 адаптеров агентов (http, cli, container, langgraph, crewai, autogen, mcp, bedrock, vertex, azure_openai) + SDK-pull-адаптер
+│   ├── atp-dashboard/             # FastAPI бэкенд, benchmark/tournament API, auth, MCP tournament-сервер
+│   └── atp-sdk/                   # Python SDK (PyPI: atp-platform-sdk) для участников бенчмарков
+│
+├── game-environments/             # Автономная библиотека теории игр (8 игр, 25+ стратегий)
+├── atp-games/                     # ATP-плагин для теоретико-игровой оценки
+│
+├── tests/                         # 80%+ покрытие
+│   ├── unit/
+│   ├── integration/
+│   ├── e2e/
+│   └── fixtures/
 ├── examples/
-│   └── test_suites/      # 20+ примеров YAML test suites
-├── docs/                 # Документация
-└── pyproject.toml        # Зависимости и конфигурация
+│   └── test_suites/               # 20+ примеров YAML test suites
+├── docs/                          # Документация
+├── deploy/                        # Конфигурации деплоя
+└── pyproject.toml                 # Зависимости и конфигурация (uv workspace)
 ```
